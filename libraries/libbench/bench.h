@@ -18,17 +18,23 @@ private:
 
   const std::string name;
   clock::time_point start_time;
+  u64 counter;
 
 public:
-  Benchmark(const std::string &_name) : name(_name) {}
+  Benchmark(const std::string &_name) : name(_name), counter(0) {}
 
   const std::string &get_name() const { return name; }
+  u64 get_counter() const { return counter; }
+  void increment_counter() { counter++; }
 
   virtual void setup()    = 0;
   virtual void run()      = 0;
   virtual void teardown() = 0;
 
-  void start() { start_time = clock::now(); }
+  void start() {
+    start_time = clock::now();
+    counter    = 0;
+  }
 
   time_ns_t stop() {
     const clock::time_point end_time = clock::now();
@@ -51,8 +57,9 @@ public:
       const time_ns_t duration = benchmark->stop();
       benchmark->teardown();
 
-      // Output the result
-      printf("%-35s\t%15ld ns\n", benchmark->get_name().c_str(), duration);
+      const double ops_per_sec = static_cast<double>(benchmark->get_counter()) / (duration / 1'000'000'000.0);
+
+      printf("%-35s\t%15ld ns\t%15.0f ops/sec\n", benchmark->get_name().c_str(), duration, ops_per_sec);
     }
   }
 };

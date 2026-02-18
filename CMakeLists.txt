@@ -23,6 +23,18 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED True)
 set(CMAKE_C_EXTENSIONS True)
 
+# Check if the compiler is GCC
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # Check if the version is less than 13.0
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 13.0)
+        message(FATAL_ERROR 
+            "You are using GCC version ${CMAKE_CXX_COMPILER_VERSION}. "
+            "This project uses std::format, which requires at least g++-13. "
+            "Compilation may fail."
+        )
+    endif()
+endif()
+
 ###############################################################################
 # Enable asserts in RelWithDebInfo mode
 ###############################################################################
