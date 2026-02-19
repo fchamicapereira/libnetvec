@@ -255,39 +255,76 @@ public:
 //
 // =====================================================================================
 
-template <size_t N> class MapVecUniformReads : public MapBench<N> {
+template <size_t N> class MapVecBench : public Benchmark {
+protected:
+  const u64 map_capacity;
+  const u64 total_operations;
+
+  RandomUniformEngine uniform_engine;
+  std::vector<std::array<bytes_t, N * MapVec::VECTOR_SIZE>> keys_pool;
+  std::vector<u64> key_queries;
+
+public:
+  MapVecBench(const std::string &_name, u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : Benchmark(_name), map_capacity(_map_capacity), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff),
+        keys_pool(_map_capacity / MapVec::VECTOR_SIZE), key_queries(_total_operations) {
+    assert(map_capacity > 0 && "map_capacity must be greater than 0");
+    assert(N > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+    assert((map_capacity & (map_capacity - 1)) == 0 && "map_capacity must be a power of 2");
+  }
+
+  void setup() override {
+    for (u64 i = 0; i < map_capacity; i += MapVec::VECTOR_SIZE) {
+      for (bytes_t j = 0; j < N * MapVec::VECTOR_SIZE; j++) {
+        keys_pool[i][j] = static_cast<bytes_t>(uniform_engine.generate());
+      }
+    }
+    for (u64 i = 0; i < total_operations; ++i) {
+      const u64 random_index = uniform_engine.generate() % map_capacity;
+      key_queries.push_back(random_index);
+    }
+  }
+
+  void teardown() override {}
+};
+
+template <size_t N> class MapVecUniformReads : public MapVecBench<N> {
 private:
   MapVec map;
 
 public:
   MapVecUniformReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
-      : MapBench<N>(std::format("MapVec-Uni-{}-R", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity, N) {}
+      : MapVecBench<N>(std::format("MapVec-Uni-{}-R", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity, N) {}
 
   void setup() override final {
-    for (u64 i = 0; i < this->map_capacity; i++) {
-      void *key_ptr = static_cast<void *>(this->keys_pool[i].data());
-      int value     = static_cast<int>(i);
-      map.put(key_ptr, value);
+    for (u64 i = 0; i < this->map_capacity / MapVec::VECTOR_SIZE; i++) {
+      for (int j = 0; j < MapVec::VECTOR_SIZE; j++) {
+        void *key_ptr = static_cast<void *>(static_cast<bytes_t *>(this->keys_pool[i].data()) + j * N);
+        int value     = static_cast<int>(i + j);
+        map.put(key_ptr, value);
+      }
     }
   }
 
   void run() override final {
     for (u64 i = 0; i < this->key_queries.size(); i += MapVec::VECTOR_SIZE) {
-      void *keys = static_cast<void *>(this->keys_pool[i].data());
-      std::array<int, MapVec::VECTOR_SIZE> values;
-      map.get_vec(keys, values.data());
+      const u64 key_query = this->key_queries[i];
+      void *keys          = static_cast<void *>(this->keys_pool[key_query].data());
+      int values[MapVec::VECTOR_SIZE];
+      map.get_vec(keys, values);
       Benchmark::increment_counter(MapVec::VECTOR_SIZE);
     }
   }
 };
 
-template <size_t N> class MapVecUniformWrites : public MapBench<N> {
+template <size_t N> class MapVecUniformWrites : public MapVecBench<N> {
 private:
   MapVec map;
 
 public:
   MapVecUniformWrites(u32 random_seed, u64 _map_capacity, u64 _total_operations)
-      : MapBench<N>(std::format("MapVec-Uni-{}-W", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity, N) {
+      : MapVecBench<N>(std::format("MapVec-Uni-{}-W", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity, N) {
     assert(_total_operations % MapVec::VECTOR_SIZE == 0 && "total_operations must be a multiple of MapVec::VECTOR_SIZE");
   }
 
@@ -295,12 +332,13 @@ public:
 
   void run() override final {
     for (u64 i = 0; i < this->key_queries.size(); i += MapVec::VECTOR_SIZE) {
-      void *keys = static_cast<void *>(this->keys_pool[i].data());
-      std::array<int, MapVec::VECTOR_SIZE> values;
+      const u64 key_query = this->key_queries[i];
+      void *keys          = static_cast<void *>(this->keys_pool[key_query].data());
+      int values[MapVec::VECTOR_SIZE];
       for (int j = 0; j < MapVec::VECTOR_SIZE; j++) {
-        values[j] = static_cast<int>(this->key_queries[i + j]);
+        values[j] = static_cast<int>(i + j);
       }
-      map.put_vec(keys, values.data());
+      map.put_vec(keys, values);
       Benchmark::increment_counter(MapVec::VECTOR_SIZE);
     }
   }

@@ -111,12 +111,12 @@ void test_unsuccessful_gets(const unsigned capacity, const unsigned key_size, co
 }
 
 int main() {
-  // test_puts(65536, 12, 16);
-  // test_puts(32, 12, 32);
-  // test_puts(65536, 12, 65536);
-  // test_gets(65536, 12, 16);
-  // test_gets(65536, 12, 32);
-  // test_gets(65536, 12, 65536);
+  test_puts(65536, 12, 16);
+  test_puts(32, 12, 32);
+  test_puts(65536, 12, 65536);
+  test_gets(65536, 12, 16);
+  test_gets(65536, 12, 32);
+  test_gets(65536, 12, 65536);
   test_unsuccessful_gets(65536, 12, 16);
   return 0;
 }
