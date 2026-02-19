@@ -1,5 +1,5 @@
 #include <libnet/map.h>
-#include <libnetburst/mapvec.h>
+#include <libnetvec/mapvec.h>
 #include <libbench/bench.h>
 #include <libbench/random.h>
 
@@ -355,11 +355,11 @@ int main() {
   suite.add_benchmark(std::make_unique<MapUniformWrites<12>>(0, 262'144, 65536));
   suite.add_benchmark(std::make_unique<MapVecUniformWrites<12>>(0, 262'144, 65536));
 
-  // suite.add_benchmark(std::make_unique<UstdUniformUpdates<12>>(0, 65536, 1'600'000));
-  // suite.add_benchmark(std::make_unique<MapUniformUpdates<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<UstdUniformUpdates<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformUpdates<12>>(0, 65536, 1'600'000));
 
-  // suite.add_benchmark(std::make_unique<UstdUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
-  // suite.add_benchmark(std::make_unique<MapUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
+  suite.add_benchmark(std::make_unique<UstdUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
 
   suite.run_all();
 

@@ -1,4 +1,4 @@
-#include <libnetburst/mapvec.h>
+#include <libnetvec/mapvec.h>
 #include <libbench/types.h>
 #include <libbench/random.h>
 

@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(
-    libnetburst
+    libnetvec
     VERSION 1.0
     LANGUAGES C CXX
 )
@@ -90,7 +90,7 @@ endif()
 ###############################################################################
 
 add_subdirectory(libraries/libnet)
-add_subdirectory(libraries/libnetburst)
+add_subdirectory(libraries/libnetvec)
 add_subdirectory(libraries/libbench)
 
 ###############################################################################
@@ -111,7 +111,7 @@ foreach(BENCH ${BENCH})
     target_include_directories(${BENCH_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${BENCH_TARGET} PUBLIC net)
-    target_link_libraries(${BENCH_TARGET} PUBLIC netburst)
+    target_link_libraries(${BENCH_TARGET} PUBLIC netvec)
 
 
     # Adding compilation flag for finding __builtin_ia32_crc32si
@@ -123,9 +123,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 
 file (GLOB_RECURSE TESTS ${PROJECT_SOURCE_DIR}/tests/*.cpp)
-
-# Put test executables in a separate directory to avoid cluttering the main bin directory.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 
 foreach(TEST ${TESTS})
     get_filename_component(TEST_NAME ${TEST} NAME_WE)
@@ -139,7 +136,7 @@ foreach(TEST ${TESTS})
     target_include_directories(${TEST_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${TEST_TARGET} PUBLIC net)
-    target_link_libraries(${TEST_TARGET} PUBLIC netburst)
+    target_link_libraries(${TEST_TARGET} PUBLIC netvec)
 
     # Adding compilation flag for finding __builtin_ia32_crc32si
     target_compile_options(${TEST_TARGET} PRIVATE -msse4.2)
