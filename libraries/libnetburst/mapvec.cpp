@@ -113,7 +113,7 @@ inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_h
 }
 
 inline __m512i hash_keys_vec(void *keys, unsigned key_size) {
-  // TODO: vectorize this
+  // // TODO: vectorize this
   unsigned hashes[MapVec::VECTOR_SIZE];
   for (unsigned i = 0; i < MapVec::VECTOR_SIZE; ++i) {
     void *key = (void *)((unsigned char *)keys + i * key_size);
@@ -152,7 +152,8 @@ MapVec::~MapVec() {
 void MapVec::put_vec(void *keys, int *values) {
   assert(size + MapVec::VECTOR_SIZE <= capacity);
 
-  // Create a mask with all bits set to 1
+  // Create a mask with all bits set to 1.
+  // This mask will be updated in each iteration of the loop, indicating the lanes that are still pending.
   __mmask16 mask = 0xffff;
 
   // Offset vector for linear probing, starting at 0.
@@ -173,11 +174,13 @@ void MapVec::put_vec(void *keys, int *values) {
 
     // Detect conflicts between the active lanes.
     // This returns a vector where each lane contains a bitmask of previous lanes that have the same index.
+    // This is a **heavy** operation, but the alternative would be a gather/scatter approach, equally expensive.
     __m512i conflicts = _mm512_mask_conflict_epi32(_mm512_setzero_si512(), mask, indices_vec);
 
     // A lane can only proceed if it has NO conflicts with previous lanes
     // _mm512_testn_epi32_mask returns true where (src1 & src2) == 0
     __mmask16 no_conflict_mask = _mm512_mask_testn_epi32_mask(mask, conflicts, _mm512_set1_epi32(0xffffffff));
+    no_conflict_mask           = _mm512_kand(no_conflict_mask, mask);
 
     // Selectively gather busybits using the mask
     __m512i busybits_vec = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), no_conflict_mask, indices_vec, busybits, sizeof(int));
@@ -206,6 +209,7 @@ void MapVec::put_vec(void *keys, int *values) {
     // printf("keys_hi_vec: %s\n", zmm512_64b_to_str(keys_hi_vec).c_str());
     // printf("indices_vec: %s\n", zmm512_32b_to_str(indices_vec).c_str());
 
+    // Gather the indices for the lo and hi keys for scattertering
     __m256i indices_lo = _mm512_castsi512_si256(indices_vec);
     __m256i indices_hi = _mm512_extracti32x8_epi32(indices_vec, 1);
 
@@ -234,7 +238,8 @@ void MapVec::put_vec(void *keys, int *values) {
 
 // FIXME: this should return an array of ints indicating successful reads.
 int MapVec::get_vec(void *keys, int *values_out) const {
-  // Create a mask with all bits set to 1
+  // Create a mask with all bits set to 1.
+  // This mask will be updated in each iteration of the loop, indicating the lanes that are still pending.
   __mmask16 mask = 0xffff;
 
   // Offset vector for linear probing, starting at 0.
