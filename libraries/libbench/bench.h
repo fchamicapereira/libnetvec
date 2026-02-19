@@ -25,7 +25,7 @@ public:
 
   const std::string &get_name() const { return name; }
   u64 get_counter() const { return counter; }
-  void increment_counter() { counter++; }
+  void increment_counter(u64 increment = 1) { counter += increment; }
 
   virtual void setup()    = 0;
   virtual void run()      = 0;

@@ -63,8 +63,7 @@ inline unsigned find_empty(int *busybits, int *chns, unsigned start, unsigned ca
   return -1;
 }
 
-inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_hashes, int *chns, void *keyp, unsigned key_size, unsigned key_hash,
-                                      unsigned capacity) {
+inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_hashes, int *chns, void *keyp, unsigned key_size, unsigned key_hash, unsigned capacity) {
   unsigned i     = 0;
   unsigned start = loop(key_hash, capacity);
 

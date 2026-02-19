@@ -11,7 +11,6 @@ private:
   int *busybits;
   void **keyps;
   unsigned *khs;
-  int *chns;
   int *vals;
   unsigned size;
 
@@ -19,7 +18,8 @@ public:
   MapVec(unsigned capacity, unsigned key_size);
   ~MapVec();
 
-  int get_vec(void *keys, int *values) const;
+  // FIXME: this should return an array of ints indicating successful reads.
+  int get_vec(void *keys, int *values_out) const;
   void put_vec(void *keys, int *values);
   void erase_vec(void *keys);
 

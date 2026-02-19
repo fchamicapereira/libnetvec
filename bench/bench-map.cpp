@@ -20,8 +20,8 @@ protected:
 
 public:
   MapBench(const std::string &_name, u32 random_seed, u64 _map_capacity, u64 _total_operations)
-      : Benchmark(_name), map_capacity(_map_capacity), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff),
-        keys_pool(_map_capacity), key_queries(_total_operations) {
+      : Benchmark(_name), map_capacity(_map_capacity), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff), keys_pool(_map_capacity),
+        key_queries(_total_operations) {
     assert(map_capacity > 0 && "map_capacity must be greater than 0");
     assert(N > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
@@ -255,6 +255,32 @@ public:
 //
 // =====================================================================================
 
+template <size_t N> class MapVecUniformReads : public MapBench<N> {
+private:
+  MapVec map;
+
+public:
+  MapVecUniformReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapBench<N>(std::format("MapVec-Uni-{}-R", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity, N) {}
+
+  void setup() override final {
+    for (u64 i = 0; i < this->map_capacity; i++) {
+      void *key_ptr = static_cast<void *>(this->keys_pool[i].data());
+      int value     = static_cast<int>(i);
+      map.put(key_ptr, value);
+    }
+  }
+
+  void run() override final {
+    for (u64 i = 0; i < this->key_queries.size(); i += MapVec::VECTOR_SIZE) {
+      void *keys = static_cast<void *>(this->keys_pool[i].data());
+      std::array<int, MapVec::VECTOR_SIZE> values;
+      map.get_vec(keys, values.data());
+      Benchmark::increment_counter(MapVec::VECTOR_SIZE);
+    }
+  }
+};
+
 template <size_t N> class MapVecUniformWrites : public MapBench<N> {
 private:
   MapVec map;
@@ -275,7 +301,7 @@ public:
         values[j] = static_cast<int>(this->key_queries[i + j]);
       }
       map.put_vec(keys, values.data());
-      Benchmark::increment_counter();
+      Benchmark::increment_counter(MapVec::VECTOR_SIZE);
     }
   }
 };
@@ -285,16 +311,17 @@ int main() {
 
   suite.add_benchmark(std::make_unique<UstdUniformReads<12>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapUniformReads<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVecUniformReads<12>>(0, 65536, 1'600'000));
 
-  suite.add_benchmark(std::make_unique<UstdUniformWrites<12>>(0, 65536, 65536));
-  suite.add_benchmark(std::make_unique<MapUniformWrites<12>>(0, 65536, 65536));
-  suite.add_benchmark(std::make_unique<MapVecUniformWrites<12>>(0, 65536, 65536));
+  suite.add_benchmark(std::make_unique<UstdUniformWrites<12>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<MapUniformWrites<12>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<MapVecUniformWrites<12>>(0, 262'144, 65536));
 
-  suite.add_benchmark(std::make_unique<UstdUniformUpdates<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapUniformUpdates<12>>(0, 65536, 1'600'000));
+  // suite.add_benchmark(std::make_unique<UstdUniformUpdates<12>>(0, 65536, 1'600'000));
+  // suite.add_benchmark(std::make_unique<MapUniformUpdates<12>>(0, 65536, 1'600'000));
 
-  suite.add_benchmark(std::make_unique<UstdUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
+  // suite.add_benchmark(std::make_unique<UstdUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
+  // suite.add_benchmark(std::make_unique<MapUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
 
   suite.run_all();
 
