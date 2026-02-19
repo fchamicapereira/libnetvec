@@ -1,4 +1,5 @@
 #include <libnet/map.h>
+#include <libnetburst/mapvec.h>
 #include <libbench/bench.h>
 #include <libbench/random.h>
 
@@ -248,20 +249,52 @@ public:
   }
 };
 
+// =====================================================================================
+//
+//                                 MapVec benchmarks
+//
+// =====================================================================================
+
+template <size_t N> class MapVecUniformWrites : public MapBench<N> {
+private:
+  MapVec map;
+
+public:
+  MapVecUniformWrites(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapBench<N>(std::format("MapVec-Uni-{}-W", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity, N) {
+    assert(_total_operations % MapVec::VECTOR_SIZE == 0 && "total_operations must be a multiple of MapVec::VECTOR_SIZE");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    for (u64 i = 0; i < this->key_queries.size(); i += MapVec::VECTOR_SIZE) {
+      void *keys = static_cast<void *>(this->keys_pool[i].data());
+      std::array<int, MapVec::VECTOR_SIZE> values;
+      for (int j = 0; j < MapVec::VECTOR_SIZE; j++) {
+        values[j] = static_cast<int>(this->key_queries[i + j]);
+      }
+      map.put_vec(keys, values.data());
+      Benchmark::increment_counter();
+    }
+  }
+};
+
 int main() {
   BenchmarkSuite suite;
 
-  suite.add_benchmark(std::make_unique<UstdUniformReads<12>>(0, 65536, 1'000'000));
-  suite.add_benchmark(std::make_unique<MapUniformReads<12>>(0, 65536, 1'000'000));
+  suite.add_benchmark(std::make_unique<UstdUniformReads<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformReads<12>>(0, 65536, 1'600'000));
 
   suite.add_benchmark(std::make_unique<UstdUniformWrites<12>>(0, 65536, 65536));
   suite.add_benchmark(std::make_unique<MapUniformWrites<12>>(0, 65536, 65536));
+  suite.add_benchmark(std::make_unique<MapVecUniformWrites<12>>(0, 65536, 65536));
 
-  suite.add_benchmark(std::make_unique<UstdUniformUpdates<12>>(0, 65536, 1'000'000));
-  suite.add_benchmark(std::make_unique<MapUniformUpdates<12>>(0, 65536, 1'000'000));
+  suite.add_benchmark(std::make_unique<UstdUniformUpdates<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformUpdates<12>>(0, 65536, 1'600'000));
 
-  suite.add_benchmark(std::make_unique<UstdUniformReadWrites<12>>(0, 1 << 20, 1'000'000));
-  suite.add_benchmark(std::make_unique<MapUniformReadWrites<12>>(0, 1 << 20, 1'000'000));
+  suite.add_benchmark(std::make_unique<UstdUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformReadWrites<12>>(0, 1 << 20, 1'600'000));
 
   suite.run_all();
 

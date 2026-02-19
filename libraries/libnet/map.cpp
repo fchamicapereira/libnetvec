@@ -1,5 +1,4 @@
 #include "map.h"
-#include "map-impl-pow2.h"
 #include "compute.h"
 
 #include <stdlib.h>
@@ -15,8 +14,7 @@ inline unsigned loop(unsigned k, unsigned capacity) { return k & (capacity - 1);
 
 inline int find_key(int *busybits, void **keyps, unsigned *k_hashes, int *chns, void *keyp, unsigned key_size, unsigned key_hash, unsigned capacity) {
   unsigned start = loop(key_hash, capacity);
-  unsigned i     = 0;
-  for (; i < capacity; ++i) {
+  for (unsigned i = 0; i < capacity; ++i) {
     unsigned index = loop(start + i, capacity);
     int bb         = busybits[index];
     unsigned kh    = k_hashes[index];
@@ -66,7 +64,7 @@ inline unsigned find_empty(int *busybits, int *chns, unsigned start, unsigned ca
 }
 
 inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_hashes, int *chns, void *keyp, unsigned key_size, unsigned key_hash,
-                                      unsigned capacity, void **keyp_out) {
+                                      unsigned capacity) {
   unsigned i     = 0;
   unsigned start = loop(key_hash, capacity);
 
@@ -79,7 +77,6 @@ inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_h
     if (bb != 0 && kh == key_hash) {
       if (keq(kp, keyp, key_size)) {
         busybits[index] = 0;
-        *keyp_out       = keyps[index];
         return index;
       }
     }
@@ -90,7 +87,7 @@ inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_h
 
 } // namespace
 
-Map::Map(unsigned _capacity, unsigned _key_size) {
+Map::Map(unsigned _capacity, unsigned _key_size) : capacity(_capacity), key_size(_key_size), size(0) {
   // Check that capacity is a power of 2
   if (_capacity == 0 || is_power_of_two(_capacity) == 0) {
     fprintf(stderr, "Error: Capacity must be a power of 2\n");
@@ -102,11 +99,11 @@ Map::Map(unsigned _capacity, unsigned _key_size) {
   khs      = (unsigned *)malloc(sizeof(unsigned) * (int)_capacity);
   chns     = (int *)malloc(sizeof(int) * (int)_capacity);
   vals     = (int *)malloc(sizeof(int) * (int)_capacity);
-  capacity = _capacity;
-  size     = 0;
-  key_size = _key_size;
 
-  map_impl_init(busybits, key_size, keyps, khs, chns, vals, capacity);
+  for (unsigned i = 0; i < capacity; ++i) {
+    busybits[i] = 0;
+    chns[i]     = 0;
+  }
 }
 
 Map::~Map() {
@@ -142,9 +139,9 @@ void Map::put(void *key, int value) {
   ++size;
 }
 
-void Map::erase(void *key, void **trash) {
+void Map::erase(void *key) {
   unsigned hash = khash(key, key_size);
-  find_key_remove_chain(busybits, keyps, khs, chns, key, key_size, hash, capacity, trash);
+  find_key_remove_chain(busybits, keyps, khs, chns, key, key_size, hash, capacity);
   --size;
 }
 

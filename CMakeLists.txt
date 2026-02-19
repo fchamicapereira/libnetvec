@@ -90,6 +90,7 @@ endif()
 ###############################################################################
 
 add_subdirectory(libraries/libnet)
+add_subdirectory(libraries/libnetburst)
 add_subdirectory(libraries/libbench)
 
 ###############################################################################
@@ -110,7 +111,36 @@ foreach(BENCH ${BENCH})
     target_include_directories(${BENCH_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${BENCH_TARGET} PUBLIC net)
+    target_link_libraries(${BENCH_TARGET} PUBLIC netburst)
+
 
     # Adding compilation flag for finding __builtin_ia32_crc32si
     target_compile_options(${BENCH_TARGET} PRIVATE -msse4.2)
 endforeach(BENCH ${BENCH})
+
+# For the tests only, build with debug symbols and without optimizations, to get better stack traces.
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
+
+file (GLOB_RECURSE TESTS ${PROJECT_SOURCE_DIR}/tests/*.cpp)
+
+# Put test executables in a separate directory to avoid cluttering the main bin directory.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
+
+foreach(TEST ${TESTS})
+    get_filename_component(TEST_NAME ${TEST} NAME_WE)
+
+    set(TEST_TARGET "${TEST_NAME}-target")
+    set(TEST_SOURCES ${TEST})
+
+    add_executable(${TEST_TARGET} ${TEST_SOURCES})
+    set_target_properties(${TEST_TARGET} PROPERTIES OUTPUT_NAME "${TEST_NAME}")
+    
+    target_include_directories(${TEST_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
+    
+    target_link_libraries(${TEST_TARGET} PUBLIC net)
+    target_link_libraries(${TEST_TARGET} PUBLIC netburst)
+
+    # Adding compilation flag for finding __builtin_ia32_crc32si
+    target_compile_options(${TEST_TARGET} PRIVATE -msse4.2)
+endforeach(TEST ${TESTS})
