@@ -1,7 +1,5 @@
 #pragma once
 
-namespace bench {
-
 using u64 = __UINT64_TYPE__;
 using u32 = __UINT32_TYPE__;
 using u16 = __UINT16_TYPE__;
@@ -21,5 +19,3 @@ using time_s_t  = i64;
 using time_ms_t = i64;
 using time_us_t = i64;
 using time_ns_t = i64;
-
-} // namespace bench

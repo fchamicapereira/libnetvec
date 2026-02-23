@@ -6,9 +6,7 @@
 #include <cassert>
 #include <iostream>
 
-#include <libbench/types.h>
-
-namespace bench {
+#include <libutil/types.h>
 
 class RandomUniformEngine {
 private:
@@ -22,8 +20,7 @@ private:
   Generator generator;
 
 public:
-  RandomUniformEngine(u32 _rand_seed, i32 _min, i32 _max)
-      : rand_seed(_rand_seed), gen(rand_seed), random_dist(_min, _max), generator(std::bind(random_dist, gen)) {}
+  RandomUniformEngine(u32 _rand_seed, i32 _min, i32 _max) : rand_seed(_rand_seed), gen(rand_seed), random_dist(_min, _max), generator(std::bind(random_dist, gen)) {}
 
   RandomUniformEngine(u32 _rand_seed) : rand_seed(_rand_seed), gen(rand_seed), random_dist(0, INT32_MAX), generator(std::bind(random_dist, gen)) {}
 
@@ -68,8 +65,7 @@ public:
 
   RandomRealEngine(unsigned _rand_seed) : rand_seed(_rand_seed), gen(rand_seed), random_dist(0, UINT64_MAX), generator(std::bind(random_dist, gen)) {}
 
-  RandomRealEngine(const RandomRealEngine &other)
-      : rand_seed(other.rand_seed), gen(other.gen), random_dist(other.random_dist), generator(std::bind(random_dist, gen)) {}
+  RandomRealEngine(const RandomRealEngine &other) : rand_seed(other.rand_seed), gen(other.gen), random_dist(other.random_dist), generator(std::bind(random_dist, gen)) {}
 
   RandomRealEngine(RandomRealEngine &&other)
       : rand_seed(other.rand_seed), gen(std::move(other.gen)), random_dist(std::move(other.random_dist)), generator(std::move(other.generator)) {}
@@ -138,5 +134,3 @@ private:
     return zipf_param;
   }
 };
-
-} // namespace bench

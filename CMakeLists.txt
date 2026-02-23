@@ -90,8 +90,6 @@ endif()
 ###############################################################################
 
 add_subdirectory(libraries/libnet)
-add_subdirectory(libraries/libnetvec)
-add_subdirectory(libraries/libbench)
 
 ###############################################################################
 # Build executables
@@ -111,11 +109,10 @@ foreach(BENCH ${BENCH})
     target_include_directories(${BENCH_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${BENCH_TARGET} PUBLIC net)
-    target_link_libraries(${BENCH_TARGET} PUBLIC netvec)
-
 
     # Adding compilation flag for finding __builtin_ia32_crc32si
     target_compile_options(${BENCH_TARGET} PRIVATE -msse4.2)
+    target_compile_options(${BENCH_TARGET} PRIVATE -mavx512f -mavx512dq -march=native)
 endforeach(BENCH ${BENCH})
 
 # For the tests only, build with debug symbols and without optimizations, to get better stack traces.
@@ -136,8 +133,8 @@ foreach(TEST ${TESTS})
     target_include_directories(${TEST_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${TEST_TARGET} PUBLIC net)
-    target_link_libraries(${TEST_TARGET} PUBLIC netvec)
-
+    
     # Adding compilation flag for finding __builtin_ia32_crc32si
     target_compile_options(${TEST_TARGET} PRIVATE -msse4.2)
+    target_compile_options(${TEST_TARGET} PRIVATE -mavx512f -mavx512dq -march=native)
 endforeach(TEST ${TESTS})
