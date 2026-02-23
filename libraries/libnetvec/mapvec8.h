@@ -1,22 +1,27 @@
 #pragma once
 
-class MapVec {
+class MapVec8 {
 public:
-  static constexpr const unsigned VECTOR_SIZE = 16;
+  static constexpr const unsigned VECTOR_SIZE       = 8;
+  static constexpr const unsigned SPECIAL_NULL_HASH = 0;
 
 private:
   const unsigned capacity;
   const unsigned key_size;
 
-  int *busybits;
+  typedef struct {
+    unsigned hash;
+    int value;
+  } hash_value_t;
+
+  hash_value_t *hashes_values;
   void **keyps;
-  unsigned *khs;
-  int *vals;
+
   unsigned size;
 
 public:
-  MapVec(unsigned capacity, unsigned key_size);
-  ~MapVec();
+  MapVec8(unsigned capacity, unsigned key_size);
+  ~MapVec8();
 
   // FIXME: this should return an array of ints indicating successful reads.
   int get_vec(void *keys, int *values_out) const;

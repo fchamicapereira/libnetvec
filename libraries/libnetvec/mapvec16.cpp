@@ -1,5 +1,6 @@
-#include "mapvec.h"
+#include "mapvec16.h"
 #include "compute.h"
+#include "zmm.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,38 +11,6 @@
 #include <iostream>
 #include <format>
 #include <sstream>
-
-std::string zmm512_64b_to_str(__m512i v) {
-  alignas(64) std::array<uint64_t, 8> ptrs;
-  _mm512_store_si512(ptrs.data(), v);
-
-  std::stringstream ss;
-  ss << "[";
-  for (int i = 7; i >= 0; --i) {
-    ss << std::format("0x{:016x}", ptrs[i]);
-    if (i != 0) {
-      ss << ",";
-    }
-  }
-  ss << "]";
-  return ss.str();
-}
-
-std::string zmm512_32b_to_str(__m512i v) {
-  alignas(64) std::array<uint32_t, 16> ptrs;
-  _mm512_store_si512(ptrs.data(), v);
-
-  std::stringstream ss;
-  ss << "[";
-  for (int i = 15; i >= 0; --i) {
-    ss << std::format("0x{:08x}", ptrs[i]);
-    if (i != 0) {
-      ss << ",";
-    }
-  }
-  ss << "]";
-  return ss.str();
-}
 
 namespace {
 
@@ -113,19 +82,20 @@ inline unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_h
 }
 
 inline __m512i hash_keys_vec(void *keys, unsigned key_size) {
-  // // TODO: vectorize this
-  unsigned hashes[MapVec::VECTOR_SIZE];
-  for (unsigned i = 0; i < MapVec::VECTOR_SIZE; ++i) {
+  // TODO: vectorize this
+  unsigned hashes[MapVec16::VECTOR_SIZE];
+  for (unsigned i = 0; i < MapVec16::VECTOR_SIZE; ++i) {
     void *key = (void *)((unsigned char *)keys + i * key_size);
     hashes[i] = khash(key, key_size);
   }
+  assert(sizeof(hashes) == sizeof(__m512i));
   __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
   return hashes_vec;
 }
 
 } // namespace
 
-MapVec::MapVec(unsigned _capacity, unsigned _key_size) : capacity(_capacity), key_size(_key_size), size(0) {
+MapVec16::MapVec16(unsigned _capacity, unsigned _key_size) : capacity(_capacity), key_size(_key_size), size(0) {
   // Check that capacity is a power of 2
   if (_capacity == 0 || is_power_of_two(_capacity) == 0) {
     fprintf(stderr, "Error: Capacity must be a power of 2\n");
@@ -142,15 +112,15 @@ MapVec::MapVec(unsigned _capacity, unsigned _key_size) : capacity(_capacity), ke
   }
 }
 
-MapVec::~MapVec() {
+MapVec16::~MapVec16() {
   free(busybits);
   free(keyps);
   free(khs);
   free(vals);
 }
 
-void MapVec::put_vec(void *keys, int *values) {
-  assert(size + MapVec::VECTOR_SIZE <= capacity);
+void MapVec16::put_vec(void *keys, int *values) {
+  assert(size + MapVec16::VECTOR_SIZE <= capacity);
 
   // Create a mask with all bits set to 1.
   // This mask will be updated in each iteration of the loop, indicating the lanes that are still pending.
@@ -163,7 +133,7 @@ void MapVec::put_vec(void *keys, int *values) {
   __m512i hashes_vec = hash_keys_vec(keys, key_size);
   // printf("hashes_vec: %s\n", zmm512_32b_to_str(hashes_vec).c_str());
 
-  unsigned pending = MapVec::VECTOR_SIZE;
+  unsigned pending = MapVec16::VECTOR_SIZE;
   while (pending != 0) {
     // Add offset to hashes to get the current indices
     __m512i indices_vec = _mm512_add_epi32(hashes_vec, offset);
@@ -233,11 +203,11 @@ void MapVec::put_vec(void *keys, int *values) {
     pending = _cvtmask16_u32(_mm_popcnt_u32(mask));
   }
 
-  size += MapVec::VECTOR_SIZE;
+  size += MapVec16::VECTOR_SIZE;
 }
 
 // FIXME: this should return an array of ints indicating successful reads.
-int MapVec::get_vec(void *keys, int *values_out) const {
+int MapVec16::get_vec(void *keys, int *values_out) const {
   // Create a mask with all bits set to 1.
   // This mask will be updated in each iteration of the loop, indicating the lanes that are still pending.
   __mmask16 mask = 0xffff;
@@ -249,7 +219,7 @@ int MapVec::get_vec(void *keys, int *values_out) const {
   __m512i hashes_vec = hash_keys_vec(keys, key_size);
   // printf("hashes_vec: %s\n", zmm512_32b_to_str(hashes_vec).c_str());
 
-  unsigned pending = MapVec::VECTOR_SIZE;
+  unsigned pending = MapVec16::VECTOR_SIZE;
   while (pending != 0) {
     // Add offset to hashes to get the current indices
     __m512i indices_vec = _mm512_add_epi32(hashes_vec, offset);
@@ -349,7 +319,7 @@ int MapVec::get_vec(void *keys, int *values_out) const {
   return 1;
 }
 
-int MapVec::get(void *key, int *value_out) const {
+int MapVec16::get(void *key, int *value_out) const {
   unsigned hash = khash(key, key_size);
   int index     = find_key(busybits, keyps, khs, key, key_size, hash, capacity);
 
@@ -361,7 +331,7 @@ int MapVec::get(void *key, int *value_out) const {
   return 1;
 }
 
-void MapVec::put(void *key, int value) {
+void MapVec16::put(void *key, int value) {
   unsigned hash  = khash(key, key_size);
   unsigned start = loop(hash, capacity);
   unsigned index = find_empty(busybits, start, capacity);
@@ -376,10 +346,10 @@ void MapVec::put(void *key, int value) {
   // printf("Put key %p with hash 0x%08x at index 0x%04x\n", key, hash, index);
 }
 
-void MapVec::erase(void *key) {
+void MapVec16::erase(void *key) {
   unsigned hash = khash(key, key_size);
   find_key_remove_chain(busybits, keyps, khs, key, key_size, hash, capacity);
   --size;
 }
 
-unsigned MapVec::get_size() const { return size; }
+unsigned MapVec16::get_size() const { return size; }
