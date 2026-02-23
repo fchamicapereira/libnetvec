@@ -1,7 +1,8 @@
 #pragma once
 
-#include "compute.h"
-#include "zmm.h"
+#include <libutil/hash.h>
+#include <libutil/math.h>
+#include <libutil/zmm.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,24 +16,24 @@
 
 template <size_t key_size> class MapVec8 {
 public:
-  static constexpr const unsigned VECTOR_SIZE       = 8;
-  static constexpr const unsigned SPECIAL_NULL_HASH = 0;
+  static constexpr const u32 VECTOR_SIZE       = 8;
+  static constexpr const u32 SPECIAL_NULL_HASH = 0;
 
 private:
-  const unsigned capacity;
+  const u32 capacity;
 
   typedef struct {
-    unsigned hash;
+    u32 hash;
     int value;
   } hash_value_t;
 
   hash_value_t *hashes_values;
   void **keyps;
 
-  unsigned size;
+  u32 size;
 
 public:
-  MapVec8(unsigned _capacity) : capacity(_capacity), size(0) {
+  MapVec8(u32 _capacity) : capacity(_capacity), size(0) {
     // Check that capacity is a power of 2
     if (_capacity == 0 || is_power_of_two(_capacity) == 0) {
       fprintf(stderr, "Error: Capacity must be a power of 2\n");
@@ -42,7 +43,7 @@ public:
     hashes_values = (hash_value_t *)malloc(sizeof(hash_value_t) * _capacity);
     keyps         = (void **)malloc(sizeof(void *) * _capacity);
 
-    for (unsigned i = 0; i < capacity; ++i) {
+    for (u32 i = 0; i < capacity; ++i) {
       hashes_values[i].hash  = SPECIAL_NULL_HASH;
       hashes_values[i].value = 0;
       keyps[i]               = nullptr;
@@ -67,7 +68,7 @@ public:
     __m512i hashes_vec = hash_keys_vec(keys);
     // printf("hashes_vec: %s\n", zmm512_64b_to_str(hashes_vec).c_str());
 
-    unsigned pending = MapVec8::VECTOR_SIZE;
+    u32 pending = MapVec8::VECTOR_SIZE;
     while (pending != 0) {
       // Add offset to hashes to get the current indices
       __m512i indices_vec = _mm512_add_epi64(hashes_vec, offset);
@@ -93,14 +94,14 @@ public:
 
       // Load the keys into vector registers
       __m512i base_offsets = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-      __m512i keysp_base   = _mm512_set1_epi64((uint64_t)keys);
+      __m512i keysp_base   = _mm512_set1_epi64((u64)keys);
       __m512i keysp_vec    = _mm512_add_epi64(keysp_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
       // printf("keys_vec:         %s\n", zmm512_64b_to_str(keys_vec).c_str());
 
       // Load the keys from memory for the lanes where the match_mask is set
       __m512i target_keysp_vec = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), match_mask, indices_vec, keyps, sizeof(void *));
 
-      for (unsigned bytes_compared = 0; bytes_compared < key_size; bytes_compared += 8) {
+      for (u32 bytes_compared = 0; bytes_compared < key_size; bytes_compared += 8) {
         if (key_size - bytes_compared >= 8) {
           // Compare the gathered keys with the input keys to confirm matches
           // Keys can be arbitrarily large, so we need to compare them 32b at a time.
@@ -162,7 +163,7 @@ public:
     __m512i hashes_vec = hash_keys_vec(keys);
     // printf("hashes_vec: %s\n", zmm512_64b_to_str(hashes_vec).c_str());
 
-    unsigned pending = MapVec8::VECTOR_SIZE;
+    u32 pending = MapVec8::VECTOR_SIZE;
     while (pending != 0) {
       // Add offset to hashes to get the current indices
       __m512i indices_vec = _mm512_add_epi64(hashes_vec, offset);
@@ -218,7 +219,7 @@ public:
 
       // Load the keys into vector registers
       __m512i base_offsets = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-      __m512i keys_base    = _mm512_set1_epi64((uint64_t)keys);
+      __m512i keys_base    = _mm512_set1_epi64((u64)keys);
       __m512i keys_vec     = _mm512_add_epi64(keys_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
       // printf("keys_vec:         %s\n", zmm512_64b_to_str(keys_vec).c_str());
 
@@ -246,10 +247,10 @@ public:
   void erase_vec(void *keys);
 
   int get(void *key, int *value_out) const {
-    const unsigned hash = crc32hash<key_size>(key);
+    const u32 hash = crc32hash<key_size>(key);
 
-    for (unsigned i = 0; i < capacity; ++i) {
-      const unsigned index  = loop(hash + i, capacity);
+    for (u32 i = 0; i < capacity; ++i) {
+      const u32 index       = loop(hash + i, capacity);
       const hash_value_t vh = hashes_values[index];
       if (vh.hash != SPECIAL_NULL_HASH && vh.hash == hash) {
         if (keq(keyps[index], key)) {
@@ -263,11 +264,11 @@ public:
   }
 
   void put(void *key, int value) {
-    const unsigned hash = crc32hash<key_size>(key);
+    const u32 hash = crc32hash<key_size>(key);
 
-    for (unsigned i = 0; i < capacity; ++i) {
-      const unsigned index = loop(hash + i, capacity);
-      hash_value_t &vh     = hashes_values[index];
+    for (u32 i = 0; i < capacity; ++i) {
+      const u32 index  = loop(hash + i, capacity);
+      hash_value_t &vh = hashes_values[index];
       if (vh.hash == SPECIAL_NULL_HASH) {
         keyps[index] = key;
         vh.hash      = hash;
@@ -282,10 +283,10 @@ public:
   }
 
   void erase(void *key) {
-    const unsigned hash = crc32hash<key_size>(key);
-    for (unsigned i = 0; i < capacity; ++i) {
-      const unsigned index = loop(hash + i, capacity);
-      hash_value_t &vh     = hashes_values[index];
+    const u32 hash = crc32hash<key_size>(key);
+    for (u32 i = 0; i < capacity; ++i) {
+      const u32 index  = loop(hash + i, capacity);
+      hash_value_t &vh = hashes_values[index];
       if (vh.hash != SPECIAL_NULL_HASH && vh.hash == hash) {
         if (keq(keyps[index], key)) {
           vh.hash = SPECIAL_NULL_HASH;
@@ -296,22 +297,24 @@ public:
     }
   }
 
-  unsigned get_size() const { return size; }
+  u32 get_size() const { return size; }
 
 private:
   int keq(void *key1, void *key2) const { return memcmp(key1, key2, key_size) == 0; }
 
-  unsigned loop(unsigned k, unsigned capacity) const { return k & (capacity - 1); }
+  u32 loop(u32 k, u32 capacity) const { return k & (capacity - 1); }
 
   __m512i hash_keys_vec(void *keys) const {
-    // TODO: vectorize this
-    uint64_t hashes[MapVec8::VECTOR_SIZE];
-    for (unsigned i = 0; i < MapVec8::VECTOR_SIZE; ++i) {
-      void *key = (void *)((unsigned char *)keys + i * key_size);
-      hashes[i] = crc32hash<key_size>(key);
-    }
-    assert(sizeof(hashes) == sizeof(__m512i));
-    __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
-    return hashes_vec;
+    // Sequential implementation
+    // u64 hashes[MapVec8::VECTOR_SIZE];
+    // for (u32 i = 0; i < MapVec8::VECTOR_SIZE; ++i) {
+    //   void *key = (void *)((u8 *)keys + i * key_size);
+    //   hashes[i] = crc32hash<key_size>(key);
+    // }
+    // assert(sizeof(hashes) == sizeof(__m512i));
+    // __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
+    // return hashes_vec;
+
+    return _mm512_zextsi256_si512(fxhash_vec8<key_size>(keys));
   }
 };

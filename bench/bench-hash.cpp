@@ -1,4 +1,4 @@
-#include <libnetvec/compute.h>
+#include <libutil/hash.h>
 #include <libutil/random.h>
 
 #include <unordered_map>
@@ -8,7 +8,7 @@
 #include <chrono>
 
 class Benchmark {
-private:
+protected:
   using clock = std::conditional<std::chrono::high_resolution_clock::is_steady, std::chrono::high_resolution_clock, std::chrono::steady_clock>::type;
 
   const std::string name;
@@ -89,7 +89,7 @@ public:
   void setup() override final {}
 
   void run() override final {
-    for (u64 i = 0; i < total_operations; ++i) {
+    while (counter < total_operations) {
       std::array<bytes_t, key_size> key;
       for (bytes_t j = 0; j < key_size; j++) {
         key[j] = static_cast<bytes_t>(uniform_engine.generate());
@@ -119,7 +119,7 @@ public:
   void setup() override final {}
 
   void run() override final {
-    for (u64 i = 0; i < total_operations; ++i) {
+    while (counter < total_operations) {
       std::array<bytes_t, key_size> key;
       for (bytes_t j = 0; j < key_size; j++) {
         key[j] = static_cast<bytes_t>(uniform_engine.generate());
@@ -133,12 +133,47 @@ public:
   void teardown() override final {}
 };
 
+template <size_t key_size> class FXHashVec8Bench : public Benchmark {
+private:
+  const u64 total_operations;
+
+  RandomUniformEngine uniform_engine;
+
+public:
+  FXHashVec8Bench(u32 random_seed, u64 _total_operations)
+      : Benchmark(std::format("fxhash-vec8-{}", _total_operations)), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff) {
+    assert(key_size > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    while (counter < total_operations) {
+      std::array<bytes_t, key_size * 8> key;
+      for (bytes_t j = 0; j < key_size * 8; j++) {
+        key[j] = static_cast<bytes_t>(uniform_engine.generate());
+      }
+      const __m256i hashes = fxhash_vec8<key_size>(key.data());
+      std::array<u32, 8> hash_array;
+      _mm256_storeu_si256((__m256i *)hash_array.data(), hashes);
+      for (const u32 hash : hash_array) {
+        store_hash(hash);
+        increment_counter();
+      }
+    }
+  }
+
+  void teardown() override final {}
+};
+
 int main() {
   BenchmarkSuite suite;
 
   suite.add_benchmark_group("16B keys");
   suite.add_benchmark(std::make_unique<CRC32Bench<16>>(0, 1'000'000));
   suite.add_benchmark(std::make_unique<FXHashBench<16>>(0, 1'000'000));
+  suite.add_benchmark(std::make_unique<FXHashVec8Bench<16>>(0, 1'000'000));
 
   suite.run_all();
 

@@ -483,22 +483,22 @@ int main() {
   BenchmarkSuite suite;
 
   suite.add_benchmark_group("Uniform reads");
-  suite.add_benchmark(std::make_unique<UstdUniformReads<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapUniformReads<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapVec16UniformReads<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapVec8UniformReads<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<UstdUniformReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVec16UniformReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVec8UniformReads<16>>(0, 65536, 1'600'000));
 
   suite.add_benchmark_group("Uniform failed reads");
-  suite.add_benchmark(std::make_unique<UstdUniformFailedReads<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapUniformFailedReads<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapVec16UniformFailedReads<12>>(0, 65536, 1'600'000));
-  suite.add_benchmark(std::make_unique<MapVec8UniformFailedReads<12>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<UstdUniformFailedReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapUniformFailedReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVec16UniformFailedReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVec8UniformFailedReads<16>>(0, 65536, 1'600'000));
 
   suite.add_benchmark_group("Uniform writes");
-  suite.add_benchmark(std::make_unique<UstdUniformWrites<12>>(0, 262'144, 65536));
-  suite.add_benchmark(std::make_unique<MapUniformWrites<12>>(0, 262'144, 65536));
-  suite.add_benchmark(std::make_unique<MapVec16UniformWrites<12>>(0, 262'144, 65536));
-  suite.add_benchmark(std::make_unique<MapVec8UniformWrites<12>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<UstdUniformWrites<16>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<MapUniformWrites<16>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<MapVec16UniformWrites<16>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<MapVec8UniformWrites<16>>(0, 262'144, 65536));
 
   suite.run_all();
 

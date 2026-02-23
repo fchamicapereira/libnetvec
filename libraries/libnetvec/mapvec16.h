@@ -1,7 +1,8 @@
 #pragma once
 
-#include "compute.h"
-#include "zmm.h"
+#include <libutil/hash.h>
+#include <libutil/math.h>
+#include <libutil/zmm.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,20 +16,20 @@
 
 template <size_t key_size> class MapVec16 {
 public:
-  static constexpr const unsigned VECTOR_SIZE = 16;
+  static constexpr const u32 VECTOR_SIZE = 16;
 
 private:
-  const unsigned capacity;
+  const u32 capacity;
 
   int *busybits;
   void **keyps;
-  unsigned *khs;
+  u32 *khs;
   int *vals;
 
-  unsigned size;
+  u32 size;
 
 public:
-  MapVec16(unsigned _capacity) : capacity(_capacity), size(0) {
+  MapVec16(u32 _capacity) : capacity(_capacity), size(0) {
     // Check that capacity is a power of 2
     if (_capacity == 0 || is_power_of_two(_capacity) == 0) {
       fprintf(stderr, "Error: Capacity must be a power of 2\n");
@@ -37,10 +38,10 @@ public:
 
     busybits = (int *)malloc(sizeof(int) * (int)_capacity);
     keyps    = (void **)malloc(sizeof(void *) * (int)_capacity);
-    khs      = (unsigned *)malloc(sizeof(unsigned) * (int)_capacity);
+    khs      = (u32 *)malloc(sizeof(u32) * (int)_capacity);
     vals     = (int *)malloc(sizeof(int) * (int)_capacity);
 
-    for (unsigned i = 0; i < capacity; ++i) {
+    for (u32 i = 0; i < capacity; ++i) {
       busybits[i] = 0;
     }
   }
@@ -65,7 +66,7 @@ public:
     __m512i hashes_vec = hash_keys_vec(keys);
     // printf("hashes_vec: %s\n", zmm512_32b_to_str(hashes_vec).c_str());
 
-    unsigned pending = MapVec16::VECTOR_SIZE;
+    u32 pending = MapVec16::VECTOR_SIZE;
     while (pending != 0) {
       // Add offset to hashes to get the current indices
       __m512i indices_vec = _mm512_add_epi32(hashes_vec, offset);
@@ -76,7 +77,7 @@ public:
 
       // Selectively gather busybits and hashes using the mask
       __m512i busybits_vec = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, indices_vec, busybits, sizeof(int));
-      __m512i khs_vec      = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, indices_vec, khs, sizeof(unsigned));
+      __m512i khs_vec      = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, indices_vec, khs, sizeof(u32));
 
       // Create a mask for lanes where busybits is 1 and hashes match
       __mmask16 busybits_cmp = _mm512_cmpneq_epi32_mask(busybits_vec, _mm512_setzero_si512());
@@ -88,9 +89,9 @@ public:
 
       // Load the keys into vector registers, first 8 pointers (0-7) into the 'low' register and next 8 pointers (8-15) into the 'high' register
       __m512i base_offsets        = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-      __m512i target_keysp_base   = _mm512_set1_epi64((uint64_t)keys);
+      __m512i target_keysp_base   = _mm512_set1_epi64((u64)keys);
       __m512i target_keysp_lo_vec = _mm512_add_epi64(target_keysp_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
-      target_keysp_base           = _mm512_set1_epi64((uint64_t)keys + 8 * key_size);
+      target_keysp_base           = _mm512_set1_epi64((u64)keys + 8 * key_size);
       __m512i target_keysp_hi_vec = _mm512_add_epi64(target_keysp_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
 
       // Print keys_lo_vec and keys_hi_vec for debugging
@@ -107,7 +108,7 @@ public:
       __m512i keysp_lo_vec = _mm512_mask_i32gather_epi64(_mm512_setzero_si512(), match_mask, indices_lo, keyps, sizeof(void *));
       __m512i keyps_hi_vec = _mm512_mask_i32gather_epi64(_mm512_setzero_si512(), match_mask >> 8, indices_hi, keyps, sizeof(void *));
 
-      for (unsigned bytes_compared = 0; bytes_compared < key_size; bytes_compared += 4) {
+      for (u32 bytes_compared = 0; bytes_compared < key_size; bytes_compared += 4) {
         if (key_size - bytes_compared >= 4) {
           // Compare the gathered keys with the input keys to confirm matches
           // Keys can be arbitrarily large, so we need to compare them 32b at a time.
@@ -179,7 +180,7 @@ public:
     __m512i hashes_vec = hash_keys_vec(keys);
     // printf("hashes_vec: %s\n", zmm512_32b_to_str(hashes_vec).c_str());
 
-    unsigned pending = MapVec16::VECTOR_SIZE;
+    u32 pending = MapVec16::VECTOR_SIZE;
     while (pending != 0) {
       // Add offset to hashes to get the current indices
       __m512i indices_vec = _mm512_add_epi32(hashes_vec, offset);
@@ -211,13 +212,13 @@ public:
       _mm512_mask_i32scatter_epi32(busybits, insertion_mask, indices_vec, _mm512_set1_epi32(1), sizeof(int));
 
       // Store the hashes, keys, and values for the indices where busybits is 0 (empty slots)
-      _mm512_mask_i32scatter_epi32(khs, insertion_mask, indices_vec, hashes_vec, sizeof(unsigned));
+      _mm512_mask_i32scatter_epi32(khs, insertion_mask, indices_vec, hashes_vec, sizeof(u32));
 
       // Load the keys into vector registers, first 8 pointers (0-7) into the 'low' register and next 8 pointers (8-15) into the 'high' register
       __m512i base_offsets = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-      __m512i keys_base    = _mm512_set1_epi64((uint64_t)keys);
+      __m512i keys_base    = _mm512_set1_epi64((u64)keys);
       __m512i keys_lo_vec  = _mm512_add_epi64(keys_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
-      keys_base            = _mm512_set1_epi64((uint64_t)keys + 8 * key_size);
+      keys_base            = _mm512_set1_epi64((u64)keys + 8 * key_size);
       __m512i keys_hi_vec  = _mm512_add_epi64(keys_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
 
       // Print keys_lo_vec and keys_hi_vec for debugging
@@ -255,8 +256,8 @@ public:
   void erase_vec(void *keys);
 
   int get(void *key, int *value_out) const {
-    unsigned hash = crc32hash<key_size>(key);
-    int index     = find_key(busybits, keyps, khs, key, hash, capacity);
+    u32 hash  = crc32hash<key_size>(key);
+    int index = find_key(busybits, keyps, khs, key, hash, capacity);
 
     if (-1 == index) {
       return 0;
@@ -267,9 +268,9 @@ public:
   }
 
   void put(void *key, int value) {
-    unsigned hash  = crc32hash<key_size>(key);
-    unsigned start = loop(hash, capacity);
-    unsigned index = find_empty(busybits, start, capacity);
+    u32 hash  = crc32hash<key_size>(key);
+    u32 start = loop(hash, capacity);
+    u32 index = find_empty(busybits, start, capacity);
 
     busybits[index] = 1;
     keyps[index]    = key;
@@ -282,25 +283,25 @@ public:
   }
 
   void erase(void *key) {
-    unsigned hash = crc32hash<key_size>(key);
+    u32 hash = crc32hash<key_size>(key);
     find_key_remove_chain(busybits, keyps, khs, key, hash, capacity);
     --size;
   }
 
-  unsigned get_size() const { return size; }
+  u32 get_size() const { return size; }
 
 private:
   int keq(void *key1, void *key2) const { return memcmp(key1, key2, key_size) == 0; }
 
-  unsigned loop(unsigned k, unsigned capacity) const { return k & (capacity - 1); }
+  u32 loop(u32 k, u32 capacity) const { return k & (capacity - 1); }
 
-  int find_key(int *busybits, void **keyps, unsigned *k_hashes, void *keyp, unsigned key_hash, unsigned capacity) const {
-    unsigned start = loop(key_hash, capacity);
-    for (unsigned i = 0; i < capacity; ++i) {
-      unsigned index = loop(start + i, capacity);
-      int bb         = busybits[index];
-      unsigned kh    = k_hashes[index];
-      void *kp       = keyps[index];
+  int find_key(int *busybits, void **keyps, u32 *k_hashes, void *keyp, u32 key_hash, u32 capacity) const {
+    u32 start = loop(key_hash, capacity);
+    for (u32 i = 0; i < capacity; ++i) {
+      u32 index = loop(start + i, capacity);
+      int bb    = busybits[index];
+      u32 kh    = k_hashes[index];
+      void *kp  = keyps[index];
       if (bb != 0 && kh == key_hash) {
         if (keq(kp, keyp)) {
           return (int)index;
@@ -310,10 +311,10 @@ private:
     return -1;
   }
 
-  unsigned find_empty(int *busybits, unsigned start, unsigned capacity) const {
-    for (unsigned i = 0; i < capacity; ++i) {
-      unsigned index = loop(start + i, capacity);
-      int bb         = busybits[index];
+  u32 find_empty(int *busybits, u32 start, u32 capacity) const {
+    for (u32 i = 0; i < capacity; ++i) {
+      u32 index = loop(start + i, capacity);
+      int bb    = busybits[index];
       if (0 == bb) {
         return index;
       }
@@ -321,15 +322,15 @@ private:
     return -1;
   }
 
-  unsigned find_key_remove_chain(int *busybits, void **keyps, unsigned *k_hashes, void *keyp, unsigned key_hash, unsigned capacity) const {
-    unsigned i     = 0;
-    unsigned start = loop(key_hash, capacity);
+  u32 find_key_remove_chain(int *busybits, void **keyps, u32 *k_hashes, void *keyp, u32 key_hash, u32 capacity) const {
+    u32 i     = 0;
+    u32 start = loop(key_hash, capacity);
 
     for (; i < capacity; ++i) {
-      unsigned index = loop(start + i, capacity);
-      int bb         = busybits[index];
-      unsigned kh    = k_hashes[index];
-      void *kp       = keyps[index];
+      u32 index = loop(start + i, capacity);
+      int bb    = busybits[index];
+      u32 kh    = k_hashes[index];
+      void *kp  = keyps[index];
       if (bb != 0 && kh == key_hash) {
         if (keq(kp, keyp)) {
           busybits[index] = 0;
@@ -342,9 +343,9 @@ private:
 
   __m512i hash_keys_vec(void *keys) const {
     // TODO: vectorize this
-    unsigned hashes[MapVec16::VECTOR_SIZE];
-    for (unsigned i = 0; i < MapVec16::VECTOR_SIZE; ++i) {
-      void *key = (void *)((unsigned char *)keys + i * key_size);
+    u32 hashes[MapVec16::VECTOR_SIZE];
+    for (u32 i = 0; i < MapVec16::VECTOR_SIZE; ++i) {
+      void *key = (void *)((u8 *)keys + i * key_size);
       hashes[i] = crc32hash<key_size>(key);
     }
     assert(sizeof(hashes) == sizeof(__m512i));
