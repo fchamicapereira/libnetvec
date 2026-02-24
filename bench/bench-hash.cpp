@@ -7,6 +7,34 @@
 #include <format>
 #include <chrono>
 
+template <size_t key_size> using hkey_t       = std::array<u8, key_size>;
+template <size_t key_size> using hkey_vec8_t  = std::array<u8, key_size * 8>;
+template <size_t key_size> using hkey_vec16_t = std::array<u8, key_size * 16>;
+
+template <size_t key_size> hkey_t<key_size> generate_random_key(RandomUniformEngine &engine) {
+  hkey_t<key_size> key;
+  for (size_t i = 0; i < key_size; i++) {
+    key[i] = static_cast<u8>(engine.generate());
+  }
+  return key;
+}
+
+template <size_t key_size> hkey_vec8_t<key_size> generate_random_key_vec8(RandomUniformEngine &engine) {
+  hkey_vec8_t<key_size> key;
+  for (size_t i = 0; i < key_size * 8; i++) {
+    key[i] = static_cast<u8>(engine.generate());
+  }
+  return key;
+}
+
+template <size_t key_size> hkey_vec16_t<key_size> generate_random_key_vec16(RandomUniformEngine &engine) {
+  hkey_vec16_t<key_size> key;
+  for (size_t i = 0; i < key_size * 16; i++) {
+    key[i] = static_cast<u8>(engine.generate());
+  }
+  return key;
+}
+
 class Benchmark {
 protected:
   using clock = std::conditional<std::chrono::high_resolution_clock::is_steady, std::chrono::high_resolution_clock, std::chrono::steady_clock>::type;
@@ -15,9 +43,10 @@ protected:
   clock::time_point start_time;
   u64 counter;
   std::unordered_set<u32> generated_hashes;
+  RandomUniformEngine uniform_engine;
 
 public:
-  Benchmark(const std::string &_name) : name(_name), counter(0) {}
+  Benchmark(const std::string &_name, u32 random_seed) : name(_name), counter(0), uniform_engine(random_seed, 0, 0xff) {}
 
   const std::string &get_name() const { return name; }
   u64 get_counter() const { return counter; }
@@ -73,15 +102,12 @@ public:
   }
 };
 
-template <size_t key_size> class CRC32Bench : public Benchmark {
+template <size_t key_size> class CRC32_Bench : public Benchmark {
 private:
   const u64 total_operations;
 
-  RandomUniformEngine uniform_engine;
-
 public:
-  CRC32Bench(u32 random_seed, u64 _total_operations)
-      : Benchmark(std::format("crc32-{}", _total_operations)), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff) {
+  CRC32_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("crc32-{}", _total_operations), random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -90,11 +116,8 @@ public:
 
   void run() override final {
     while (counter < total_operations) {
-      std::array<bytes_t, key_size> key;
-      for (bytes_t j = 0; j < key_size; j++) {
-        key[j] = static_cast<bytes_t>(uniform_engine.generate());
-      }
-      const u32 hash = crc32hash<key_size>(key.data());
+      const hkey_t<key_size> key = generate_random_key<key_size>(uniform_engine);
+      const u32 hash             = crc32hash<key_size>(key.data());
       store_hash(hash);
       increment_counter();
     }
@@ -103,15 +126,12 @@ public:
   void teardown() override final {}
 };
 
-template <size_t key_size> class FXHashBench : public Benchmark {
+template <size_t key_size> class FXHash_Bench : public Benchmark {
 private:
   const u64 total_operations;
 
-  RandomUniformEngine uniform_engine;
-
 public:
-  FXHashBench(u32 random_seed, u64 _total_operations)
-      : Benchmark(std::format("fxhash-{}", _total_operations)), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff) {
+  FXHash_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("fxhash-{}", _total_operations), random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -120,11 +140,8 @@ public:
 
   void run() override final {
     while (counter < total_operations) {
-      std::array<bytes_t, key_size> key;
-      for (bytes_t j = 0; j < key_size; j++) {
-        key[j] = static_cast<bytes_t>(uniform_engine.generate());
-      }
-      const u32 hash = fxhash<key_size>(key.data());
+      const hkey_t<key_size> key = generate_random_key<key_size>(uniform_engine);
+      const u32 hash             = fxhash<key_size>(key.data());
       store_hash(hash);
       increment_counter();
     }
@@ -133,15 +150,13 @@ public:
   void teardown() override final {}
 };
 
-template <size_t key_size> class FXHashVec8Bench : public Benchmark {
+template <size_t key_size> class FXHash_Vec8_Bench : public Benchmark {
 private:
   const u64 total_operations;
 
-  RandomUniformEngine uniform_engine;
-
 public:
-  FXHashVec8Bench(u32 random_seed, u64 _total_operations)
-      : Benchmark(std::format("fxhash-vec8-{}", _total_operations)), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff) {
+  FXHash_Vec8_Bench(u32 random_seed, u64 _total_operations)
+      : Benchmark(std::format("fxhash-vec8-{}", _total_operations), random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -150,11 +165,8 @@ public:
 
   void run() override final {
     while (counter < total_operations) {
-      std::array<bytes_t, key_size * 8> key;
-      for (bytes_t j = 0; j < key_size * 8; j++) {
-        key[j] = static_cast<bytes_t>(uniform_engine.generate());
-      }
-      const __m256i hashes = fxhash_vec8<key_size>(key.data());
+      const hkey_vec8_t<key_size> key = generate_random_key_vec8<key_size>(uniform_engine);
+      const __m256i hashes            = fxhash_vec8<key_size>(key.data());
       std::array<u32, 8> hash_array;
       _mm256_storeu_si256((__m256i *)hash_array.data(), hashes);
       for (const u32 hash : hash_array) {
@@ -167,13 +179,127 @@ public:
   void teardown() override final {}
 };
 
+template <size_t key_size> class FXHash_Vec16_64b_Bench : public Benchmark {
+private:
+  const u64 total_operations;
+
+public:
+  FXHash_Vec16_64b_Bench(u32 random_seed, u64 _total_operations)
+      : Benchmark(std::format("fxhash-vec16-64b-{}", _total_operations), random_seed), total_operations(_total_operations) {
+    assert(key_size > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    while (counter < total_operations) {
+      const hkey_vec16_t<key_size> key = generate_random_key_vec16<key_size>(uniform_engine);
+      const __m512i hashes             = fxhash_vec16_64b<key_size>(key.data());
+      std::array<u32, 16> hash_array;
+      _mm512_storeu_si512((__m512i *)hash_array.data(), hashes);
+      for (const u32 hash : hash_array) {
+        store_hash(hash);
+        increment_counter();
+      }
+    }
+  }
+
+  void teardown() override final {}
+};
+
+template <size_t key_size> class FXHash_Vec16_32b_Bench : public Benchmark {
+private:
+  const u64 total_operations;
+
+public:
+  FXHash_Vec16_32b_Bench(u32 random_seed, u64 _total_operations)
+      : Benchmark(std::format("fxhash-vec16-32b-{}", _total_operations), random_seed), total_operations(_total_operations) {
+    assert(key_size > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    while (counter < total_operations) {
+      const hkey_vec16_t<key_size> keys = generate_random_key_vec16<key_size>(uniform_engine);
+      const __m512i hashes              = fxhash_vec16_32b<key_size>(keys.data());
+      std::array<u32, 16> hash_array;
+      _mm512_storeu_si512((__m512i *)hash_array.data(), hashes);
+      for (const u32 hash : hash_array) {
+        store_hash(hash);
+        increment_counter();
+      }
+    }
+  }
+
+  void teardown() override final {}
+};
+
+template <size_t key_size> class DJB2_Bench : public Benchmark {
+private:
+  const u64 total_operations;
+
+public:
+  DJB2_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("djb2-{}", _total_operations), random_seed), total_operations(_total_operations) {
+    assert(key_size > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    while (counter < total_operations) {
+      const hkey_t<key_size> key = generate_random_key<key_size>(uniform_engine);
+      const u32 hash             = djb2hash<key_size>(key.data());
+      store_hash(hash);
+      increment_counter();
+    }
+  }
+
+  void teardown() override final {}
+};
+
+template <size_t key_size> class Murmur3_Bench : public Benchmark {
+private:
+  const u64 total_operations;
+
+public:
+  Murmur3_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("murmur3-{}", _total_operations), random_seed), total_operations(_total_operations) {
+    assert(key_size > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    while (counter < total_operations) {
+      const hkey_t<key_size> key = generate_random_key<key_size>(uniform_engine);
+      const u32 hash             = murmur3hash<key_size>(key.data());
+      store_hash(hash);
+      increment_counter();
+    }
+  }
+
+  void teardown() override final {}
+};
+
 int main() {
+  constexpr const size_t key_size = 16;
+  const u32 seed                  = 0;
+  const u32 N                     = 10'000'000;
+
   BenchmarkSuite suite;
 
   suite.add_benchmark_group("16B keys");
-  suite.add_benchmark(std::make_unique<CRC32Bench<16>>(0, 1'000'000));
-  suite.add_benchmark(std::make_unique<FXHashBench<16>>(0, 1'000'000));
-  suite.add_benchmark(std::make_unique<FXHashVec8Bench<16>>(0, 1'000'000));
+  suite.add_benchmark(std::make_unique<CRC32_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<FXHash_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<FXHash_Vec8_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<FXHash_Vec16_64b_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<FXHash_Vec16_32b_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<DJB2_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<Murmur3_Bench<key_size>>(seed, N));
 
   suite.run_all();
 

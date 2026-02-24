@@ -343,13 +343,15 @@ private:
 
   __m512i hash_keys_vec(void *keys) const {
     // TODO: vectorize this
-    u32 hashes[MapVec16::VECTOR_SIZE];
-    for (u32 i = 0; i < MapVec16::VECTOR_SIZE; ++i) {
-      void *key = (void *)((u8 *)keys + i * key_size);
-      hashes[i] = crc32hash<key_size>(key);
-    }
-    assert(sizeof(hashes) == sizeof(__m512i));
-    __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
-    return hashes_vec;
+    // u32 hashes[MapVec16::VECTOR_SIZE];
+    // for (u32 i = 0; i < MapVec16::VECTOR_SIZE; ++i) {
+    //   void *key = (void *)((u8 *)keys + i * key_size);
+    //   hashes[i] = crc32hash<key_size>(key);
+    // }
+    // assert(sizeof(hashes) == sizeof(__m512i));
+    // __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
+    // return hashes_vec;
+
+    return fxhash_vec16_64b<key_size>(keys);
   }
 };
