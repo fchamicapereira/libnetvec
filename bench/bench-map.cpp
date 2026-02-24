@@ -1,5 +1,6 @@
 #include <libnet/map.h>
 #include <libnetvec/mapvec16.h>
+#include <libnetvec/mapvec16v2.h>
 #include <libnetvec/mapvec8.h>
 #include <libutil/random.h>
 
@@ -365,6 +366,122 @@ public:
 
 // =====================================================================================
 //
+//                                 MapVec16v2 benchmarks
+//
+// =====================================================================================
+
+template <size_t N> class MapVec16v2Bench : public Benchmark {
+protected:
+  const u64 map_capacity;
+  const u64 total_operations;
+
+  RandomUniformEngine uniform_engine;
+  std::vector<std::array<bytes_t, N * MapVec16v2<N>::VECTOR_SIZE>> keys_pool;
+  std::vector<u64> key_queries;
+
+public:
+  MapVec16v2Bench(const std::string &_name, u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : Benchmark(_name), map_capacity(_map_capacity), total_operations(_total_operations), uniform_engine(random_seed, 0, 0xff),
+        keys_pool(_map_capacity / MapVec16v2<N>::VECTOR_SIZE), key_queries(_total_operations) {
+    assert(map_capacity > 0 && "map_capacity must be greater than 0");
+    assert(N > 0 && "key_size must be greater than 0");
+    assert(total_operations > 0 && "total_operations must be greater than 0");
+    assert((map_capacity & (map_capacity - 1)) == 0 && "map_capacity must be a power of 2");
+  }
+
+  void setup() override {
+    for (u64 i = 0; i < map_capacity; i += MapVec16v2<N>::VECTOR_SIZE) {
+      for (bytes_t j = 0; j < N * MapVec16v2<N>::VECTOR_SIZE; j++) {
+        keys_pool[i][j] = static_cast<bytes_t>(uniform_engine.generate());
+      }
+    }
+    for (u64 i = 0; i < total_operations; ++i) {
+      const u64 random_index = uniform_engine.generate() % map_capacity;
+      key_queries.push_back(random_index);
+    }
+  }
+
+  void teardown() override {}
+};
+
+template <size_t N> class MapVec16v2UniformReads : public MapVec16v2Bench<N> {
+private:
+  MapVec16v2<N> map;
+
+public:
+  MapVec16v2UniformReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapVec16v2Bench<N>(std::format("uni-r-mapvec16v2-{}", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity) {}
+
+  void setup() override final {
+    for (u64 i = 0; i < this->map_capacity / MapVec16v2<N>::VECTOR_SIZE; i++) {
+      for (int j = 0; j < MapVec16v2<N>::VECTOR_SIZE; j++) {
+        void *key_ptr = static_cast<void *>(static_cast<bytes_t *>(this->keys_pool[i].data()) + j * N);
+        int value     = static_cast<int>(i + j);
+        map.put(key_ptr, value);
+      }
+    }
+  }
+
+  void run() override final {
+    for (u64 i = 0; i < this->key_queries.size(); i += MapVec16v2<N>::VECTOR_SIZE) {
+      const u64 key_query = this->key_queries[i];
+      void *keys          = static_cast<void *>(this->keys_pool[key_query].data());
+      int values[MapVec16v2<N>::VECTOR_SIZE];
+      map.get_vec(keys, values);
+      Benchmark::increment_counter(MapVec16v2<N>::VECTOR_SIZE);
+    }
+  }
+};
+
+template <size_t N> class MapVec16v2UniformFailedReads : public MapVec16v2Bench<N> {
+private:
+  MapVec16v2<N> map;
+
+public:
+  MapVec16v2UniformFailedReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapVec16v2Bench<N>(std::format("uni-fr-mapvec16v2-{}", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity) {}
+
+  void setup() override final {}
+
+  void run() override final {
+    for (u64 i = 0; i < this->key_queries.size(); i += MapVec16v2<N>::VECTOR_SIZE) {
+      const u64 key_query = this->key_queries[i];
+      void *keys          = static_cast<void *>(this->keys_pool[key_query].data());
+      int values[MapVec16v2<N>::VECTOR_SIZE];
+      map.get_vec(keys, values);
+      Benchmark::increment_counter(MapVec16v2<N>::VECTOR_SIZE);
+    }
+  }
+};
+
+template <size_t N> class MapVec16v2UniformWrites : public MapVec16v2Bench<N> {
+private:
+  MapVec16v2<N> map;
+
+public:
+  MapVec16v2UniformWrites(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapVec16v2Bench<N>(std::format("uni-w-mapvec16v2-{}", _total_operations), random_seed, _map_capacity, _total_operations), map(_map_capacity) {
+    assert(_total_operations % MapVec16v2<N>::VECTOR_SIZE == 0 && "total_operations must be a multiple of MapVec16v2<N>::VECTOR_SIZE");
+  }
+
+  void setup() override final {}
+
+  void run() override final {
+    for (u64 i = 0; i < this->key_queries.size(); i += MapVec16v2<N>::VECTOR_SIZE) {
+      const u64 key_query = this->key_queries[i];
+      void *keys          = static_cast<void *>(this->keys_pool[key_query].data());
+      int values[MapVec16v2<N>::VECTOR_SIZE];
+      for (int j = 0; j < MapVec16v2<N>::VECTOR_SIZE; j++) {
+        values[j] = static_cast<int>(i + j);
+      }
+      map.put_vec(keys, values);
+      Benchmark::increment_counter(MapVec16v2<N>::VECTOR_SIZE);
+    }
+  }
+};
+
+// =====================================================================================
+//
 //                                 MapVec8 benchmarks
 //
 // =====================================================================================
@@ -486,18 +603,21 @@ int main() {
   suite.add_benchmark(std::make_unique<UstdUniformReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapUniformReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec16UniformReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVec16v2UniformReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec8UniformReads<16>>(0, 65536, 1'600'000));
 
   suite.add_benchmark_group("Uniform failed reads");
   suite.add_benchmark(std::make_unique<UstdUniformFailedReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapUniformFailedReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec16UniformFailedReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<MapVec16v2UniformFailedReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec8UniformFailedReads<16>>(0, 65536, 1'600'000));
 
   suite.add_benchmark_group("Uniform writes");
   suite.add_benchmark(std::make_unique<UstdUniformWrites<16>>(0, 262'144, 65536));
   suite.add_benchmark(std::make_unique<MapUniformWrites<16>>(0, 262'144, 65536));
   suite.add_benchmark(std::make_unique<MapVec16UniformWrites<16>>(0, 262'144, 65536));
+  suite.add_benchmark(std::make_unique<MapVec16v2UniformWrites<16>>(0, 262'144, 65536));
   suite.add_benchmark(std::make_unique<MapVec8UniformWrites<16>>(0, 262'144, 65536));
 
   suite.run_all();

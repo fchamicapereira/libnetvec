@@ -68,7 +68,7 @@ public:
     __m512i hashes_vec = hash_keys_vec(keys);
     // printf("hashes_vec: %s\n", zmm512_64b_to_str(hashes_vec).c_str());
 
-    u32 pending = MapVec8::VECTOR_SIZE;
+    u32 pending = VECTOR_SIZE;
     while (pending != 0) {
       // Add offset to hashes to get the current indices
       __m512i indices_vec = _mm512_add_epi64(hashes_vec, offset);
@@ -150,7 +150,7 @@ public:
   }
 
   void put_vec(void *keys, int *values) {
-    assert(size + MapVec8::VECTOR_SIZE <= capacity);
+    assert(size + VECTOR_SIZE <= capacity);
 
     // Create a mask with all bits set to 1.
     // This mask will be updated in each iteration of the loop, indicating the lanes that are still pending.
@@ -163,7 +163,7 @@ public:
     __m512i hashes_vec = hash_keys_vec(keys);
     // printf("hashes_vec: %s\n", zmm512_64b_to_str(hashes_vec).c_str());
 
-    u32 pending = MapVec8::VECTOR_SIZE;
+    u32 pending = VECTOR_SIZE;
     while (pending != 0) {
       // Add offset to hashes to get the current indices
       __m512i indices_vec = _mm512_add_epi64(hashes_vec, offset);
@@ -241,7 +241,7 @@ public:
       pending = _cvtmask16_u32(_mm_popcnt_u32(mask));
     }
 
-    size += MapVec8::VECTOR_SIZE;
+    size += VECTOR_SIZE;
   }
 
   void erase_vec(void *keys);
@@ -306,8 +306,8 @@ private:
 
   __m512i hash_keys_vec(void *keys) const {
     // Sequential implementation
-    // u64 hashes[MapVec8::VECTOR_SIZE];
-    // for (u32 i = 0; i < MapVec8::VECTOR_SIZE; ++i) {
+    // u64 hashes[VECTOR_SIZE];
+    // for (u32 i = 0; i < VECTOR_SIZE; ++i) {
     //   void *key = (void *)((u8 *)keys + i * key_size);
     //   hashes[i] = crc32hash<key_size>(key);
     // }
