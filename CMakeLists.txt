@@ -67,6 +67,12 @@ if (ENABLE_ADDRESS_SANITIZER)
     add_link_options(-fsanitize=address)
 endif()
 
+# Adding compilation flag for finding __builtin_ia32_crc32si
+add_compile_options(-msse4.2)
+
+# For the vectorized code, we enable AVX-512 instructions.
+add_compile_options(-mavx512f -mavx512dq -march=native)
+
 ###############################################################################
 # Setting output targets
 ###############################################################################
@@ -109,10 +115,6 @@ foreach(BENCH ${BENCH})
     target_include_directories(${BENCH_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${BENCH_TARGET} PUBLIC net)
-
-    # Adding compilation flag for finding __builtin_ia32_crc32si
-    target_compile_options(${BENCH_TARGET} PRIVATE -msse4.2)
-    target_compile_options(${BENCH_TARGET} PRIVATE -mavx512f -mavx512dq -march=native)
 endforeach(BENCH ${BENCH})
 
 # For the tests only, build with debug symbols and without optimizations, to get better stack traces.
@@ -133,8 +135,4 @@ foreach(TEST ${TESTS})
     target_include_directories(${TEST_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
     target_link_libraries(${TEST_TARGET} PUBLIC net)
-    
-    # Adding compilation flag for finding __builtin_ia32_crc32si
-    target_compile_options(${TEST_TARGET} PRIVATE -msse4.2)
-    target_compile_options(${TEST_TARGET} PRIVATE -mavx512f -mavx512dq -march=native)
 endforeach(TEST ${TESTS})

@@ -10,11 +10,6 @@ using i32 = __INT32_TYPE__;
 using i16 = __INT16_TYPE__;
 using i8  = __INT8_TYPE__;
 
-using bits_t      = u32;
-using bytes_t     = u32;
-using code_path_t = u16;
-using addr_t      = u64;
-
 using time_s_t  = i64;
 using time_ms_t = i64;
 using time_us_t = i64;

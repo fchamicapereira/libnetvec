@@ -74,7 +74,7 @@ protected:
   const u64 total_operations;
 
   RandomUniformEngine uniform_engine;
-  std::vector<std::array<bytes_t, N>> keys_pool;
+  std::vector<std::array<u8, N>> keys_pool;
   std::vector<u64> key_queries;
 
 public:
@@ -89,8 +89,8 @@ public:
 
   void setup() override {
     for (u64 i = 0; i < map_capacity; i++) {
-      for (bytes_t j = 0; j < N; j++) {
-        keys_pool[i][j] = static_cast<bytes_t>(uniform_engine.generate());
+      for (u8 j = 0; j < N; j++) {
+        keys_pool[i][j] = static_cast<u8>(uniform_engine.generate());
       }
     }
     for (u64 i = 0; i < total_operations; ++i) {
@@ -103,10 +103,10 @@ public:
 };
 
 template <size_t N> struct key_hasher_t {
-  size_t operator()(const std::array<bytes_t, N> &key) const {
+  size_t operator()(const std::array<u8, N> &key) const {
     unsigned hash     = 0;
     void *kptr        = (void *)key.data();
-    unsigned key_size = N * sizeof(bytes_t);
+    unsigned key_size = N * sizeof(u8);
     while (key_size > 0) {
       if (key_size >= sizeof(unsigned int)) {
         hash = __builtin_ia32_crc32si(hash, *(unsigned int *)kptr);
@@ -125,7 +125,7 @@ template <size_t N> struct key_hasher_t {
 
 template <size_t N> class UstdUniformReads : public MapBench<N> {
 private:
-  std::unordered_map<std::array<bytes_t, N>, int, key_hasher_t<N>> map;
+  std::unordered_map<std::array<u8, N>, int, key_hasher_t<N>> map;
 
 public:
   UstdUniformReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
@@ -148,7 +148,7 @@ public:
 
 template <size_t N> class UstdUniformFailedReads : public MapBench<N> {
 private:
-  std::unordered_map<std::array<bytes_t, N>, int, key_hasher_t<N>> map;
+  std::unordered_map<std::array<u8, N>, int, key_hasher_t<N>> map;
 
 public:
   UstdUniformFailedReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
@@ -166,7 +166,7 @@ public:
 
 template <size_t N> class UstdUniformWrites : public MapBench<N> {
 private:
-  std::unordered_map<std::array<bytes_t, N>, int, key_hasher_t<N>> map;
+  std::unordered_map<std::array<u8, N>, int, key_hasher_t<N>> map;
 
 public:
   UstdUniformWrites(u32 random_seed, u64 _map_capacity, u64 _total_operations)
@@ -260,7 +260,7 @@ protected:
   const u64 total_operations;
 
   RandomUniformEngine uniform_engine;
-  std::vector<std::array<bytes_t, N * MapVec16<N>::VECTOR_SIZE>> keys_pool;
+  std::vector<std::array<u8, N * MapVec16<N>::VECTOR_SIZE>> keys_pool;
   std::vector<u64> key_queries;
 
 public:
@@ -275,8 +275,8 @@ public:
 
   void setup() override {
     for (u64 i = 0; i < map_capacity; i += MapVec16<N>::VECTOR_SIZE) {
-      for (bytes_t j = 0; j < N * MapVec16<N>::VECTOR_SIZE; j++) {
-        keys_pool[i][j] = static_cast<bytes_t>(uniform_engine.generate());
+      for (u8 j = 0; j < N * MapVec16<N>::VECTOR_SIZE; j++) {
+        keys_pool[i][j] = static_cast<u8>(uniform_engine.generate());
       }
     }
     for (u64 i = 0; i < total_operations; ++i) {
@@ -299,7 +299,7 @@ public:
   void setup() override final {
     for (u64 i = 0; i < this->map_capacity / MapVec16<N>::VECTOR_SIZE; i++) {
       for (int j = 0; j < MapVec16<N>::VECTOR_SIZE; j++) {
-        void *key_ptr = static_cast<void *>(static_cast<bytes_t *>(this->keys_pool[i].data()) + j * N);
+        void *key_ptr = static_cast<void *>(static_cast<u8 *>(this->keys_pool[i].data()) + j * N);
         int value     = static_cast<int>(i + j);
         map.put(key_ptr, value);
       }
@@ -376,7 +376,7 @@ protected:
   const u64 total_operations;
 
   RandomUniformEngine uniform_engine;
-  std::vector<std::array<bytes_t, N * MapVec16v2<N>::VECTOR_SIZE>> keys_pool;
+  std::vector<std::array<u8, N * MapVec16v2<N>::VECTOR_SIZE>> keys_pool;
   std::vector<u64> key_queries;
 
 public:
@@ -391,8 +391,8 @@ public:
 
   void setup() override {
     for (u64 i = 0; i < map_capacity; i += MapVec16v2<N>::VECTOR_SIZE) {
-      for (bytes_t j = 0; j < N * MapVec16v2<N>::VECTOR_SIZE; j++) {
-        keys_pool[i][j] = static_cast<bytes_t>(uniform_engine.generate());
+      for (u8 j = 0; j < N * MapVec16v2<N>::VECTOR_SIZE; j++) {
+        keys_pool[i][j] = static_cast<u8>(uniform_engine.generate());
       }
     }
     for (u64 i = 0; i < total_operations; ++i) {
@@ -415,7 +415,7 @@ public:
   void setup() override final {
     for (u64 i = 0; i < this->map_capacity / MapVec16v2<N>::VECTOR_SIZE; i++) {
       for (int j = 0; j < MapVec16v2<N>::VECTOR_SIZE; j++) {
-        void *key_ptr = static_cast<void *>(static_cast<bytes_t *>(this->keys_pool[i].data()) + j * N);
+        void *key_ptr = static_cast<void *>(static_cast<u8 *>(this->keys_pool[i].data()) + j * N);
         int value     = static_cast<int>(i + j);
         map.put(key_ptr, value);
       }
@@ -492,7 +492,7 @@ protected:
   const u64 total_operations;
 
   RandomUniformEngine uniform_engine;
-  std::vector<std::array<bytes_t, N * MapVec8<N>::VECTOR_SIZE>> keys_pool;
+  std::vector<std::array<u8, N * MapVec8<N>::VECTOR_SIZE>> keys_pool;
   std::vector<u64> key_queries;
 
 public:
@@ -507,8 +507,8 @@ public:
 
   void setup() override {
     for (u64 i = 0; i < map_capacity; i += MapVec8<N>::VECTOR_SIZE) {
-      for (bytes_t j = 0; j < N * MapVec8<N>::VECTOR_SIZE; j++) {
-        keys_pool[i][j] = static_cast<bytes_t>(uniform_engine.generate());
+      for (u8 j = 0; j < N * MapVec8<N>::VECTOR_SIZE; j++) {
+        keys_pool[i][j] = static_cast<u8>(uniform_engine.generate());
       }
     }
     for (u64 i = 0; i < total_operations; ++i) {
@@ -531,7 +531,7 @@ public:
   void setup() override final {
     for (u64 i = 0; i < this->map_capacity / MapVec8<N>::VECTOR_SIZE; i++) {
       for (int j = 0; j < MapVec8<N>::VECTOR_SIZE; j++) {
-        void *key_ptr = static_cast<void *>(static_cast<bytes_t *>(this->keys_pool[i].data()) + j * N);
+        void *key_ptr = static_cast<void *>(static_cast<u8 *>(this->keys_pool[i].data()) + j * N);
         int value     = static_cast<int>(i + j);
         map.put(key_ptr, value);
       }
