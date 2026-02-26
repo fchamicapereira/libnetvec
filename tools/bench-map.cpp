@@ -54,18 +54,28 @@ public:
   void add_benchmark_group(const std::string &name) { benchmarks_groups.emplace_back(name, benchmarks_t{}); }
 
   void run_all() {
-    for (const auto &group : benchmarks_groups) {
+    for (const std::pair<std::string, BenchmarkSuite::benchmarks_t> &group : benchmarks_groups) {
+      std::optional<time_ns_t> base_duration;
       printf("%s\n", group.first.c_str());
-      for (const auto &benchmark : group.second) {
+      for (const std::unique_ptr<Benchmark> &benchmark : group.second) {
         benchmark->setup();
         benchmark->start();
         benchmark->run();
         const time_ns_t duration = benchmark->stop();
         benchmark->teardown();
 
-        const double ops_per_sec = static_cast<double>(benchmark->get_counter()) / (duration / 1'000'000'000.0);
+        if (!base_duration) {
+          base_duration = duration;
+        }
 
-        printf("  %-35s\t%15ld ns\t%15.0f ops/sec\n", benchmark->get_name().c_str(), duration, ops_per_sec);
+        const double ops_per_sec = static_cast<double>(benchmark->get_counter()) / (duration / 1'000'000'000.0);
+        const double speedup     = static_cast<double>(*base_duration) / duration;
+
+        printf("  %-25s", benchmark->get_name().c_str());
+        printf("\t%15ld ns", duration);
+        printf("\t%15.0f ops/sec", ops_per_sec);
+        printf("\t\t%7.4fx speedup", speedup);
+        printf("\n");
       }
     }
   }

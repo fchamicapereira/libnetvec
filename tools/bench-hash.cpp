@@ -53,22 +53,33 @@ public:
   void add_benchmark_group(const std::string &name) { benchmarks_groups.emplace_back(name, benchmarks_t{}); }
 
   void run_all() {
-    for (const auto &group : benchmarks_groups) {
+    std::optional<time_ns_t> base_duration;
+    for (const std::pair<std::string, BenchmarkSuite::benchmarks_t> &group : benchmarks_groups) {
       printf("%s\n", group.first.c_str());
-      for (const auto &benchmark : group.second) {
+      for (const std::unique_ptr<Benchmark> &benchmark : group.second) {
         benchmark->setup();
         benchmark->start();
         benchmark->run();
         const time_ns_t duration = benchmark->stop();
         benchmark->teardown();
 
+        if (!base_duration) {
+          base_duration = duration;
+        }
+
         const double ops_per_sec              = static_cast<double>(benchmark->get_counter()) / (duration / 1'000'000'000.0);
         const std::unordered_set<u32> &hashes = benchmark->get_generated_hashes();
         const size_t unique_hashes            = hashes.size();
         const size_t total_keys               = benchmark->get_counter();
         const double collision_rate           = total_keys > 0 ? (1.0 - static_cast<double>(unique_hashes) / total_keys) * 100.0 : 0.0;
+        const double speedup                  = static_cast<double>(*base_duration) / duration;
 
-        printf("  %-35s\t%15ld ns\t%15.0f ops/sec\t\t%5.2f%% collision rate\n", benchmark->get_name().c_str(), duration, ops_per_sec, collision_rate);
+        printf("  %-20s", benchmark->get_name().c_str());
+        printf("\t%15ld ns", duration);
+        printf("\t%15.0f ops/sec", ops_per_sec);
+        printf("\t\t%5.2fx speedup", speedup);
+        printf("\t\t%5.2f%% collision rate", collision_rate);
+        printf("\n");
       }
     }
   }
@@ -79,7 +90,7 @@ private:
   const u64 total_operations;
 
 public:
-  CRC32_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("crc32-{}", _total_operations), random_seed), total_operations(_total_operations) {
+  CRC32_Bench(u32 random_seed, u64 _total_operations) : Benchmark("crc32", random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -103,7 +114,7 @@ private:
   const u64 total_operations;
 
 public:
-  FXHash_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("fxhash-{}", _total_operations), random_seed), total_operations(_total_operations) {
+  FXHash_Bench(u32 random_seed, u64 _total_operations) : Benchmark("fxhash", random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -127,8 +138,7 @@ private:
   const u64 total_operations;
 
 public:
-  FXHash_Vec8_Bench(u32 random_seed, u64 _total_operations)
-      : Benchmark(std::format("fxhash-vec8-{}", _total_operations), random_seed), total_operations(_total_operations) {
+  FXHash_Vec8_Bench(u32 random_seed, u64 _total_operations) : Benchmark("fxhash-vec8", random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -156,8 +166,7 @@ private:
   const u64 total_operations;
 
 public:
-  fxhash_vec16_Bench(u32 random_seed, u64 _total_operations)
-      : Benchmark(std::format("fxhash-vec16-64b-{}", _total_operations), random_seed), total_operations(_total_operations) {
+  fxhash_vec16_Bench(u32 random_seed, u64 _total_operations) : Benchmark("fxhash-vec16-64b", random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -185,7 +194,7 @@ private:
   const u64 total_operations;
 
 public:
-  DJB2_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("djb2-{}", _total_operations), random_seed), total_operations(_total_operations) {
+  DJB2_Bench(u32 random_seed, u64 _total_operations) : Benchmark("djb2", random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
@@ -209,7 +218,7 @@ private:
   const u64 total_operations;
 
 public:
-  Murmur3_Bench(u32 random_seed, u64 _total_operations) : Benchmark(std::format("murmur3-{}", _total_operations), random_seed), total_operations(_total_operations) {
+  Murmur3_Bench(u32 random_seed, u64 _total_operations) : Benchmark("murmur3", random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
   }
