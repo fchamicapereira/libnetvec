@@ -1,46 +1,49 @@
 #include <libnetvec/mapvec16.h>
+#include <libutil/types.h>
 #include <libutil/random.h>
 
 #include <array>
 #include <assert.h>
 
-#include "tests.h"
+#include "common.h"
 
 template <size_t key_size> void test_puts(const unsigned capacity, const unsigned total_puts) {
   MapVec16<key_size> map1(capacity);
   MapVec16<key_size> map2(capacity);
-  RandomUniformEngine uniform_engine(0, 0, 0xff);
+  RandomUniformEngine keys_uniform_engine(0, 0, 0xff);
+  RandomUniformEngine values_uniform_engine(0);
 
-  while (map2.get_size() < total_puts) {
-    u8 keys[MapVec16<key_size>::VECTOR_SIZE * key_size];
+  keys_pool_t keys(key_size, capacity);
+  keys.random_populate(keys_uniform_engine);
+
+  for (int ops_done = 0; ops_done < total_puts; ops_done += MapVec16<key_size>::VECTOR_SIZE) {
     int values[MapVec16<key_size>::VECTOR_SIZE];
 
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
-      // printf("Initializing key %5d (%p)\n", map2.get_size() + i, (void *)(&keys[i * key_size]));
-      for (int j = 0; j < key_size; j++) {
-        keys[i * key_size + j] = static_cast<u8>(uniform_engine.generate());
+      values[i] = values_uniform_engine.generate();
+      printf("Key %02d: ", i);
+      for (int j = key_size - 1; j >= 0; j--) {
+        printf("%02x", keys.get_key(ops_done + i)[j]);
       }
+      printf("\n");
     }
 
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
-      values[i] = map2.get_size() + i;
-    }
-
-    for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
-      void *key = (void *)(&keys[i * key_size]);
-      int value = values[i];
-      map1.put(key, value);
+      void *target_key = (void *)keys.get_key(ops_done + i);
+      int value        = values[i];
+      map1.put(target_key, value);
 
       int new_value = 0xDEADBEEF;
-      int found     = map1.get(key, &new_value);
+      int found     = map1.get(target_key, &new_value);
       assert_or_panic(found == 1, "Failed to find key in map1");
       assert_or_panic(new_value == value, "Value mismatch in map1 (expected %d, got %d)", value, new_value);
     }
 
-    map2.put_vec(keys, values);
+    void *target_keys = (void *)keys.get_key(ops_done);
+    map2.put_vec(target_keys, values);
 
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
-      void *key     = (void *)(&keys[i * key_size]);
+      void *key     = (void *)keys.get_key(ops_done + i);
       int value     = values[i];
       int new_value = 0xDEADBEEF;
       int found     = map2.get(key, &new_value);
@@ -52,19 +55,26 @@ template <size_t key_size> void test_puts(const unsigned capacity, const unsigne
 
 template <size_t key_size> void test_gets(const unsigned capacity, const unsigned total_gets) {
   MapVec16<key_size> map(capacity);
-  RandomUniformEngine uniform_engine(0, 0, 0xff);
+  RandomUniformEngine keys_uniform_engine(0, 0, 0xff);
+  RandomUniformEngine values_uniform_engine(0);
 
-  while (map.get_size() < total_gets) {
-    u8 keys[MapVec16<key_size>::VECTOR_SIZE * key_size];
+  keys_pool_t keys(key_size, capacity);
+  keys.random_populate(keys_uniform_engine);
+
+  for (int ops_done = 0; ops_done < total_gets; ops_done += MapVec16<key_size>::VECTOR_SIZE) {
     int values[MapVec16<key_size>::VECTOR_SIZE];
 
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
-      // printf("Initializing key %5d (%p)\n", map2.get_size() + i, (void *)(&keys[i * key_size]));
-      for (int j = 0; j < key_size; j++) {
-        keys[i * key_size + j] = static_cast<u8>(uniform_engine.generate());
+      values[i] = values_uniform_engine.generate();
+      printf("Key %02d: ", i);
+      for (int j = key_size - 1; j >= 0; j--) {
+        printf("%02x", keys.get_key(ops_done + i)[j]);
       }
-      values[i] = map.get_size() + i;
-      void *key = (void *)(&keys[i * key_size]);
+      printf("\n");
+    }
+
+    for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
+      void *key = (void *)keys.get_key(ops_done + i);
       map.put(key, values[i]);
     }
 
@@ -72,7 +82,9 @@ template <size_t key_size> void test_gets(const unsigned capacity, const unsigne
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
       new_values[i] = 0;
     }
-    map.get_vec(keys, new_values);
+
+    void *target_keys = (void *)keys.get_key(ops_done);
+    map.get_vec(target_keys, new_values);
 
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
       int value     = values[i];
@@ -84,38 +96,41 @@ template <size_t key_size> void test_gets(const unsigned capacity, const unsigne
 
 template <size_t key_size> void test_unsuccessful_gets(const unsigned capacity, const unsigned total_gets) {
   MapVec16<key_size> map(capacity);
-  RandomUniformEngine uniform_engine(0, 0, 0xff);
+  RandomUniformEngine keys_uniform_engine(0, 0, 0xff);
+  RandomUniformEngine values_uniform_engine(0);
 
-  for (unsigned op = 0; op < total_gets; op++) {
-    u8 keys[MapVec16<key_size>::VECTOR_SIZE * key_size];
+  keys_pool_t keys(key_size, capacity);
+  keys.random_populate(keys_uniform_engine);
+
+  for (int ops_done = 0; ops_done < total_gets; ops_done += MapVec16<key_size>::VECTOR_SIZE) {
     int values[MapVec16<key_size>::VECTOR_SIZE];
 
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
-      // printf("Initializing key %5d (%p)\n", map2.get_size() + i, (void *)(&keys[i * key_size]));
-      for (int j = 0; j < key_size; j++) {
-        keys[i * key_size + j] = static_cast<u8>(uniform_engine.generate());
+      values[i] = values_uniform_engine.generate();
+      printf("Key %02d: ", i);
+      for (int j = key_size - 1; j >= 0; j--) {
+        printf("%02x", keys.get_key(ops_done + i)[j]);
       }
-      values[i] = map.get_size() + i;
+      printf("\n");
     }
 
     int new_values[MapVec16<key_size>::VECTOR_SIZE];
     for (int i = 0; i < MapVec16<key_size>::VECTOR_SIZE; i++) {
       new_values[i] = 0;
     }
-    map.get_vec(keys, new_values);
+
+    void *target_keys = (void *)keys.get_key(ops_done);
+    map.get_vec(target_keys, new_values);
   }
 }
 
 int main() {
   test_puts<16>(65536, 16);
-  test_puts<16>(32, 32);
+  test_puts<16>(32, 16);
   test_puts<16>(65536, 65536);
   test_gets<16>(65536, 16);
   test_gets<16>(65536, 32);
   test_gets<16>(65536, 65536);
   test_unsuccessful_gets<16>(65536, 16);
-
-  // TODO: map_erase
-  // TODO: get missing keys
   return 0;
 }

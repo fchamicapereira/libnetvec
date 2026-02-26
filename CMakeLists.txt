@@ -101,38 +101,18 @@ add_subdirectory(libraries/libnet)
 # Build executables
 ###############################################################################
 
-file(GLOB_RECURSE BENCH ${PROJECT_SOURCE_DIR}/bench/*.cpp)
+file(GLOB_RECURSE TOOLS ${PROJECT_SOURCE_DIR}/tools/*.cpp)
 
-foreach(BENCH ${BENCH})
-    get_filename_component(TOOL_NAME ${BENCH} NAME_WE)
+foreach(TOOL ${TOOLS})
+    get_filename_component(TOOL_NAME ${TOOL} NAME_WE)
 
-    set(BENCH_TARGET "${TOOL_NAME}-target")
-    set(BENCH_SOURCES ${BENCH})
+    set(TOOL_TARGET "${TOOL_NAME}-target")
+    set(TOOL_SOURCES ${TOOL})
 
-    add_executable(${BENCH_TARGET} ${BENCH_SOURCES})
-    set_target_properties(${BENCH_TARGET} PROPERTIES OUTPUT_NAME "${TOOL_NAME}")
+    add_executable(${TOOL_TARGET} ${TOOL_SOURCES})
+    set_target_properties(${TOOL_TARGET} PROPERTIES OUTPUT_NAME "${TOOL_NAME}")
     
-    target_include_directories(${BENCH_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
+    target_include_directories(${TOOL_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
     
-    target_link_libraries(${BENCH_TARGET} PUBLIC net)
-endforeach(BENCH ${BENCH})
-
-# For the tests only, build with debug symbols and without optimizations, to get better stack traces.
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
-
-file (GLOB_RECURSE TESTS ${PROJECT_SOURCE_DIR}/tests/*.cpp)
-
-foreach(TEST ${TESTS})
-    get_filename_component(TEST_NAME ${TEST} NAME_WE)
-
-    set(TEST_TARGET "${TEST_NAME}-target")
-    set(TEST_SOURCES ${TEST})
-
-    add_executable(${TEST_TARGET} ${TEST_SOURCES})
-    set_target_properties(${TEST_TARGET} PROPERTIES OUTPUT_NAME "${TEST_NAME}")
-    
-    target_include_directories(${TEST_TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
-    
-    target_link_libraries(${TEST_TARGET} PUBLIC net)
-endforeach(TEST ${TESTS})
+    target_link_libraries(${TOOL_TARGET} PUBLIC net)
+endforeach(TOOL ${TOOLS})

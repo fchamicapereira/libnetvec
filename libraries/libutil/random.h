@@ -134,3 +134,31 @@ private:
     return zipf_param;
   }
 };
+
+template <size_t key_size> using hkey_t       = std::array<u8, key_size>;
+template <size_t key_size> using hkey_vec8_t  = std::array<u8, key_size * 8>;
+template <size_t key_size> using hkey_vec16_t = std::array<u8, key_size * 16>;
+
+template <size_t key_size> hkey_t<key_size> generate_random_key(RandomUniformEngine &engine) {
+  hkey_t<key_size> key;
+  for (size_t i = 0; i < key_size; i++) {
+    key[i] = static_cast<u8>(engine.generate());
+  }
+  return key;
+}
+
+template <size_t key_size> hkey_vec8_t<key_size> generate_random_key_vec8(RandomUniformEngine &engine) {
+  hkey_vec8_t<key_size> key;
+  for (size_t i = 0; i < key_size * 8; i++) {
+    key[i] = static_cast<u8>(engine.generate());
+  }
+  return key;
+}
+
+template <size_t key_size> hkey_vec16_t<key_size> generate_random_key_vec16(RandomUniformEngine &engine) {
+  hkey_vec16_t<key_size> key;
+  for (size_t i = 0; i < key_size * 16; i++) {
+    key[i] = static_cast<u8>(engine.generate());
+  }
+  return key;
+}

@@ -7,34 +7,6 @@
 #include <format>
 #include <chrono>
 
-template <size_t key_size> using hkey_t       = std::array<u8, key_size>;
-template <size_t key_size> using hkey_vec8_t  = std::array<u8, key_size * 8>;
-template <size_t key_size> using hkey_vec16_t = std::array<u8, key_size * 16>;
-
-template <size_t key_size> hkey_t<key_size> generate_random_key(RandomUniformEngine &engine) {
-  hkey_t<key_size> key;
-  for (size_t i = 0; i < key_size; i++) {
-    key[i] = static_cast<u8>(engine.generate());
-  }
-  return key;
-}
-
-template <size_t key_size> hkey_vec8_t<key_size> generate_random_key_vec8(RandomUniformEngine &engine) {
-  hkey_vec8_t<key_size> key;
-  for (size_t i = 0; i < key_size * 8; i++) {
-    key[i] = static_cast<u8>(engine.generate());
-  }
-  return key;
-}
-
-template <size_t key_size> hkey_vec16_t<key_size> generate_random_key_vec16(RandomUniformEngine &engine) {
-  hkey_vec16_t<key_size> key;
-  for (size_t i = 0; i < key_size * 16; i++) {
-    key[i] = static_cast<u8>(engine.generate());
-  }
-  return key;
-}
-
 class Benchmark {
 protected:
   using clock = std::conditional<std::chrono::high_resolution_clock::is_steady, std::chrono::high_resolution_clock, std::chrono::steady_clock>::type;
@@ -179,12 +151,12 @@ public:
   void teardown() override final {}
 };
 
-template <size_t key_size> class FXHash_Vec16_64b_Bench : public Benchmark {
+template <size_t key_size> class fxhash_vec16_Bench : public Benchmark {
 private:
   const u64 total_operations;
 
 public:
-  FXHash_Vec16_64b_Bench(u32 random_seed, u64 _total_operations)
+  fxhash_vec16_Bench(u32 random_seed, u64 _total_operations)
       : Benchmark(std::format("fxhash-vec16-64b-{}", _total_operations), random_seed), total_operations(_total_operations) {
     assert(key_size > 0 && "key_size must be greater than 0");
     assert(total_operations > 0 && "total_operations must be greater than 0");
@@ -195,36 +167,7 @@ public:
   void run() override final {
     while (counter < total_operations) {
       const hkey_vec16_t<key_size> key = generate_random_key_vec16<key_size>(uniform_engine);
-      const __m512i hashes             = fxhash_vec16_64b<key_size>(key.data());
-      std::array<u32, 16> hash_array;
-      _mm512_storeu_si512((__m512i *)hash_array.data(), hashes);
-      for (const u32 hash : hash_array) {
-        store_hash(hash);
-        increment_counter();
-      }
-    }
-  }
-
-  void teardown() override final {}
-};
-
-template <size_t key_size> class FXHash_Vec16_32b_Bench : public Benchmark {
-private:
-  const u64 total_operations;
-
-public:
-  FXHash_Vec16_32b_Bench(u32 random_seed, u64 _total_operations)
-      : Benchmark(std::format("fxhash-vec16-32b-{}", _total_operations), random_seed), total_operations(_total_operations) {
-    assert(key_size > 0 && "key_size must be greater than 0");
-    assert(total_operations > 0 && "total_operations must be greater than 0");
-  }
-
-  void setup() override final {}
-
-  void run() override final {
-    while (counter < total_operations) {
-      const hkey_vec16_t<key_size> keys = generate_random_key_vec16<key_size>(uniform_engine);
-      const __m512i hashes              = fxhash_vec16_32b<key_size>(keys.data());
+      const __m512i hashes             = fxhash_vec16<key_size>(key.data());
       std::array<u32, 16> hash_array;
       _mm512_storeu_si512((__m512i *)hash_array.data(), hashes);
       for (const u32 hash : hash_array) {
@@ -296,8 +239,7 @@ int main() {
   suite.add_benchmark(std::make_unique<CRC32_Bench<key_size>>(seed, N));
   suite.add_benchmark(std::make_unique<FXHash_Bench<key_size>>(seed, N));
   suite.add_benchmark(std::make_unique<FXHash_Vec8_Bench<key_size>>(seed, N));
-  suite.add_benchmark(std::make_unique<FXHash_Vec16_64b_Bench<key_size>>(seed, N));
-  suite.add_benchmark(std::make_unique<FXHash_Vec16_32b_Bench<key_size>>(seed, N));
+  suite.add_benchmark(std::make_unique<fxhash_vec16_Bench<key_size>>(seed, N));
   suite.add_benchmark(std::make_unique<DJB2_Bench<key_size>>(seed, N));
   suite.add_benchmark(std::make_unique<Murmur3_Bench<key_size>>(seed, N));
 

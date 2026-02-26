@@ -34,23 +34,9 @@ template <> inline u32 crc32hash<16>(const void *key) {
 }
 
 template <size_t N> inline u32 fxhash(const void *key) {
-  const u64 magic_constant = 0x517cc1b727220a95ULL;
-
-  size_t key_size = N;
-  u32 hash        = 0;
-  while (key_size > 0) {
-    if (key_size >= sizeof(u32)) {
-      hash = (hash ^ *(u32 *)key) * magic_constant;
-      key  = (u32 *)key + 1;
-      key_size -= sizeof(u32);
-    } else {
-      u32 c = *(u8 *)key;
-      hash  = (hash ^ c) * magic_constant;
-      key   = (u8 *)key + 1;
-      key_size -= sizeof(u8);
-    }
-  }
-  return hash;
+  assert(false && "fxhash is not implemented yet");
+  printf("ERROR: fxhash is not implemented yet\n");
+  exit(1);
 }
 
 template <> inline u32 fxhash<16>(const void *key) {
@@ -97,17 +83,19 @@ template <> inline __m256i fxhash_vec8<16>(const void *keys) {
   // Final avalanche mix
   hash = _mm512_xor_si512(hash, _mm512_srli_epi64(hash, 32));
 
-  // Convert from __m512i to __m256i
-  return _mm512_extracti64x4_epi64(hash, 0);
+  // Convert from __m512i to __m256i, keeping the lower 32b of each hash
+  __m256i hash_256 = _mm512_cvtepi64_epi32(hash);
+
+  return hash_256;
 }
 
-template <size_t key_size> inline __m512i fxhash_vec16_64b(const void *keys) {
-  assert(false && "fxhash_vec16_64b is not implemented yet");
-  printf("ERROR: fxhash_vec16_64b is not implemented yet\n");
+template <size_t key_size> inline __m512i fxhash_vec16(const void *keys) {
+  assert(false && "fxhash_vec16 is not implemented yet");
+  printf("ERROR: fxhash_vec16 is not implemented yet\n");
   exit(1);
 }
 
-template <> inline __m512i fxhash_vec16_64b<16>(const void *keys) {
+template <> inline __m512i fxhash_vec16<16>(const void *keys) {
   const __m512i magic_constant = _mm512_set1_epi64(0x517cc1b727220a95ULL);
 
   __m512i hash_lo = _mm512_setzero_si512();
@@ -154,71 +142,6 @@ template <> inline __m512i fxhash_vec16_64b<16>(const void *keys) {
   // Merge the two 256-bit halves into a single 512-bit vector
   __m512i hash = _mm512_castsi256_si512(hash_lo_256);
   hash         = _mm512_inserti32x8(hash, hash_hi_256, 1);
-
-  return hash;
-}
-
-template <size_t key_size> inline __m512i fxhash_vec16_32b(const void *keys) {
-  assert(false && "fxhash_vec16_32b is not implemented yet");
-  printf("ERROR: fxhash_vec16_32b is not implemented yet\n");
-  exit(1);
-}
-
-template <> inline __m512i fxhash_vec16_32b<16>(const void *keys) {
-  const __m512i magic_constant = _mm512_set1_epi32(0x517cc1b7);
-
-  __m512i hash = _mm512_setzero_si512();
-
-  __m512i base_lo_offsets = _mm512_set_epi64(7 * 16, 6 * 16, 5 * 16, 4 * 16, 3 * 16, 2 * 16, 1 * 16, 0 * 16);
-  __m512i keysp_lo_vec    = _mm512_add_epi64(_mm512_set1_epi64((u64)keys), base_lo_offsets);
-
-  __m512i base_hi_offsets = _mm512_set_epi64(15 * 16, 14 * 16, 13 * 16, 12 * 16, 11 * 16, 10 * 16, 9 * 16, 8 * 16);
-  __m512i keysp_hi_vec    = _mm512_add_epi64(_mm512_set1_epi64((u64)keys), base_hi_offsets);
-
-  __m256i keys_lo_vec;
-  __m256i keys_hi_vec;
-  __m512i keys_vec;
-
-  // First 4B
-  keys_lo_vec = _mm512_i64gather_epi32(keysp_lo_vec, NULL, 1);
-  keys_hi_vec = _mm512_i64gather_epi32(keysp_hi_vec, NULL, 1);
-  keys_vec    = _mm512_inserti32x8(_mm512_castsi256_si512(keys_lo_vec), keys_hi_vec, 1);
-
-  hash = _mm512_xor_si512(hash, keys_vec);
-  hash = _mm512_mullo_epi64(hash, magic_constant);
-
-  keysp_lo_vec = _mm512_add_epi64(keysp_lo_vec, _mm512_set1_epi64(4));
-  keysp_hi_vec = _mm512_add_epi64(keysp_hi_vec, _mm512_set1_epi64(4));
-
-  // Second 4B
-  keys_lo_vec = _mm512_i64gather_epi32(keysp_lo_vec, NULL, 1);
-  keys_hi_vec = _mm512_i64gather_epi32(keysp_hi_vec, NULL, 1);
-  keys_vec    = _mm512_inserti32x8(_mm512_castsi256_si512(keys_lo_vec), keys_hi_vec, 1);
-
-  hash = _mm512_xor_si512(hash, keys_vec);
-  hash = _mm512_mullo_epi64(hash, magic_constant);
-
-  keysp_lo_vec = _mm512_add_epi64(keysp_lo_vec, _mm512_set1_epi64(4));
-  keysp_hi_vec = _mm512_add_epi64(keysp_hi_vec, _mm512_set1_epi64(4));
-
-  // Third 4B
-  keys_lo_vec = _mm512_i64gather_epi32(keysp_lo_vec, NULL, 1);
-  keys_hi_vec = _mm512_i64gather_epi32(keysp_hi_vec, NULL, 1);
-  keys_vec    = _mm512_inserti32x8(_mm512_castsi256_si512(keys_lo_vec), keys_hi_vec, 1);
-
-  hash = _mm512_xor_si512(hash, keys_vec);
-  hash = _mm512_mullo_epi64(hash, magic_constant);
-
-  keysp_lo_vec = _mm512_add_epi64(keysp_lo_vec, _mm512_set1_epi64(4));
-  keysp_hi_vec = _mm512_add_epi64(keysp_hi_vec, _mm512_set1_epi64(4));
-
-  // Final 4B
-  keys_lo_vec = _mm512_i64gather_epi32(keysp_lo_vec, NULL, 1);
-  keys_hi_vec = _mm512_i64gather_epi32(keysp_hi_vec, NULL, 1);
-  keys_vec    = _mm512_inserti32x8(_mm512_castsi256_si512(keys_lo_vec), keys_hi_vec, 1);
-
-  hash = _mm512_xor_si512(hash, keys_vec);
-  hash = _mm512_mullo_epi64(hash, magic_constant);
 
   return hash;
 }

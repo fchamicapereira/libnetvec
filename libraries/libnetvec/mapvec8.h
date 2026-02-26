@@ -221,7 +221,6 @@ public:
       __m512i base_offsets = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
       __m512i keys_base    = _mm512_set1_epi64((u64)keys);
       __m512i keys_vec     = _mm512_add_epi64(keys_base, _mm512_mullo_epi64(base_offsets, _mm512_set1_epi64(key_size)));
-      // printf("keys_vec:         %s\n", zmm512_64b_to_str(keys_vec).c_str());
 
       // Gather the indices for scattertering
       _mm512_mask_i64scatter_epi64(keyps, insertion_mask, indices_vec, keys_vec, sizeof(void *));
@@ -247,7 +246,8 @@ public:
   void erase_vec(void *keys);
 
   int get(void *key, int *value_out) const {
-    const u32 hash = crc32hash<key_size>(key);
+    const u32 hash = hash_key(key);
+    printf("Getting key %p with hash 0x%08x\n", key, hash);
 
     for (u32 i = 0; i < capacity; ++i) {
       const u32 index       = loop(hash + i, capacity);
@@ -264,7 +264,7 @@ public:
   }
 
   void put(void *key, int value) {
-    const u32 hash = crc32hash<key_size>(key);
+    const u32 hash = hash_key(key);
 
     for (u32 i = 0; i < capacity; ++i) {
       const u32 index  = loop(hash + i, capacity);
@@ -283,7 +283,7 @@ public:
   }
 
   void erase(void *key) {
-    const u32 hash = crc32hash<key_size>(key);
+    const u32 hash = hash_key(key);
     for (u32 i = 0; i < capacity; ++i) {
       const u32 index  = loop(hash + i, capacity);
       hash_value_t &vh = hashes_values[index];
@@ -301,20 +301,7 @@ public:
 
 private:
   int keq(void *key1, void *key2) const { return memcmp(key1, key2, key_size) == 0; }
-
   u32 loop(u32 k, u32 capacity) const { return k & (capacity - 1); }
-
-  __m512i hash_keys_vec(void *keys) const {
-    // Sequential implementation
-    // u64 hashes[VECTOR_SIZE];
-    // for (u32 i = 0; i < VECTOR_SIZE; ++i) {
-    //   void *key = (void *)((u8 *)keys + i * key_size);
-    //   hashes[i] = crc32hash<key_size>(key);
-    // }
-    // assert(sizeof(hashes) == sizeof(__m512i));
-    // __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
-    // return hashes_vec;
-
-    return _mm512_zextsi256_si512(fxhash_vec8<key_size>(keys));
-  }
+  __m512i hash_keys_vec(void *keys) const { return _mm512_cvtepu32_epi64(fxhash_vec8<key_size>(keys)); }
+  u32 hash_key(void *key) const { return fxhash<key_size>(key); }
 };

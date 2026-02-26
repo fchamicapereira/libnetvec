@@ -250,7 +250,7 @@ public:
   void erase_vec(void *keys);
 
   int get(void *key, int *value_out) const {
-    const u32 hash = crc32hash<key_size>(key);
+    const u32 hash = hash_key(key);
 
     for (u32 i = 0; i < capacity; ++i) {
       const u32 index = loop(hash + i, capacity);
@@ -267,7 +267,7 @@ public:
   }
 
   void put(void *key, int value) {
-    const u32 hash = crc32hash<key_size>(key);
+    const u32 hash = hash_key(key);
 
     for (u32 i = 0; i < capacity; ++i) {
       const u32 index = loop(hash + i, capacity);
@@ -286,7 +286,7 @@ public:
   }
 
   void erase(void *key) {
-    const u32 hash = crc32hash<key_size>(key);
+    const u32 hash = hash_key(key);
     for (u32 i = 0; i < capacity; ++i) {
       const u32 index = loop(hash + i, capacity);
       const u32 kh    = khs[index];
@@ -307,17 +307,6 @@ private:
 
   u32 loop(u32 k, u32 capacity) const { return k & (capacity - 1); }
 
-  __m512i hash_keys_vec(void *keys) const {
-    // TODO: vectorize this
-    // u32 hashes[VECTOR_SIZE];
-    // for (u32 i = 0; i < VECTOR_SIZE; ++i) {
-    //   void *key = (void *)((u8 *)keys + i * key_size);
-    //   hashes[i] = crc32hash<key_size>(key);
-    // }
-    // assert(sizeof(hashes) == sizeof(__m512i));
-    // __m512i hashes_vec = _mm512_loadu_si512((void *)hashes);
-    // return hashes_vec;
-
-    return fxhash_vec16_64b<key_size>(keys);
-  }
+  __m512i hash_keys_vec(void *keys) const { return fxhash_vec16<key_size>(keys); }
+  u32 hash_key(void *key) const { return fxhash<key_size>(key); }
 };
