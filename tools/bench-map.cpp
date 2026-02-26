@@ -2,6 +2,7 @@
 #include <libnetvec/mapvec16.h>
 #include <libnetvec/mapvec16v2.h>
 #include <libnetvec/mapvec8.h>
+#include <libnetvec/cwiss.h>
 #include <libutil/random.h>
 #include <libutil/hash.h>
 
@@ -574,6 +575,112 @@ public:
   }
 };
 
+// =====================================================================================
+//
+//                                 Cwiss benchmarks
+//
+// =====================================================================================
+
+/* Note: we initialize the cwiss map capacity with "size - 1"
+ * because the size has to be a power of 2 - 1
+ */
+
+CWISS_DECLARE_FLAT_HASHMAP(CwissMap, void *, int);
+
+template <size_t key_size> class CwissUniformReads : public MapBench<key_size> {
+private:
+  CwissMap map;
+
+public:
+  CwissUniformReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapBench<key_size>(std::format("uni-r-cwiss-{}", _total_operations),
+      random_seed, _map_capacity, _total_operations), map(CwissMap_new(_map_capacity - 1)) {}
+
+  void setup() override final {
+    MapBench<key_size>::setup();
+    for (u64 i = 0; i < this->map_capacity; i++) {
+      void *key_ptr = static_cast<void *>(this->keys_pool.get_key(i));
+      int value     = static_cast<int>(i);
+
+      CwissMap_Entry entry;
+      entry.key = key_ptr;
+      entry.val = value;
+      CwissMap_insert(&map, &entry);
+    }
+  }
+
+  void run() override final {
+    for (u64 i : this->key_queries) {
+      void *key = static_cast<void *>(this->keys_pool.get_key(i));
+
+      CwissMap_Key mkey = key;
+      CwissMap_Iter iter = CwissMap_find(&map, &mkey);
+      int value = CwissMap_Iter_get(&iter)->val;
+
+      Benchmark::increment_counter();
+    }
+  }
+};
+
+template <size_t key_size> class CwissUniformFailedReads : public MapBench<key_size> {
+private:
+  CwissMap map;
+
+public:
+  CwissUniformFailedReads(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapBench<key_size>(std::format("uni-fr-cwiss-{}", _total_operations),
+      random_seed, _map_capacity, _total_operations), map(CwissMap_new(_map_capacity - 1)) {}
+
+  void setup() override final { MapBench<key_size>::setup(); }
+
+  void run() override final {
+    for (u64 i : this->key_queries) {
+      void *key = static_cast<void *>(this->keys_pool.get_key(i));
+
+      CwissMap_Key mkey = key;
+      CwissMap_Iter iter = CwissMap_find(&map, &mkey);
+      int value = CwissMap_Iter_get(&iter)->val;
+
+      Benchmark::increment_counter();
+    }
+  }
+};
+
+template <size_t key_size> class CwissUniformWrites : public MapBench<key_size> {
+private:
+  CwissMap map;
+
+public:
+  CwissUniformWrites(u32 random_seed, u64 _map_capacity, u64 _total_operations)
+      : MapBench<key_size>(std::format("uni-w-cwiss-{}", _total_operations),
+      random_seed, _map_capacity, _total_operations), map(CwissMap_new(_map_capacity - 1)) {}
+
+  void setup() override final { MapBench<key_size>::setup(); }
+
+  void run() override final {
+    size_t inital_size = map.set_.capacity_;
+
+    for (u64 i : this->key_queries) {
+      void *key = static_cast<void *>(this->keys_pool.get_key(i));
+      int value = static_cast<int>(i);
+
+      CwissMap_Entry entry;
+      entry.key = key;
+      entry.val = value;
+      CwissMap_insert(&map, &entry);
+
+      Benchmark::increment_counter();
+    }
+
+    size_t final_size = map.set_.capacity_;
+
+    if (inital_size == final_size)
+      return;
+
+    std::cout << "Warning CwissUniformWrites Map reallocated" << std::endl;
+  }
+};
+
 int main() {
   BenchmarkSuite suite;
 
@@ -583,6 +690,7 @@ int main() {
   suite.add_benchmark(std::make_unique<MapVec16UniformReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec16v2UniformReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec8UniformReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<CwissUniformReads<16>>(0, 65536, 1'600'000));
 
   suite.add_benchmark_group("Uniform failed reads");
   suite.add_benchmark(std::make_unique<UstdUniformFailedReads<16>>(0, 65536, 1'600'000));
@@ -590,6 +698,7 @@ int main() {
   suite.add_benchmark(std::make_unique<MapVec16UniformFailedReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec16v2UniformFailedReads<16>>(0, 65536, 1'600'000));
   suite.add_benchmark(std::make_unique<MapVec8UniformFailedReads<16>>(0, 65536, 1'600'000));
+  suite.add_benchmark(std::make_unique<CwissUniformFailedReads<16>>(0, 65536, 1'600'000));
 
   suite.add_benchmark_group("Uniform writes");
   suite.add_benchmark(std::make_unique<UstdUniformWrites<16>>(0, 262'144, 65536));
@@ -597,6 +706,11 @@ int main() {
   suite.add_benchmark(std::make_unique<MapVec16UniformWrites<16>>(0, 262'144, 65536));
   suite.add_benchmark(std::make_unique<MapVec16v2UniformWrites<16>>(0, 262'144, 65536));
   suite.add_benchmark(std::make_unique<MapVec8UniformWrites<16>>(0, 262'144, 65536));
+  /*
+   * Note the Cwiss map may perform reallocation if the load factor gets too high
+   * so it may not be a apple to apples comparison. Also the size has to be a power of 2
+   */
+  suite.add_benchmark(std::make_unique<CwissUniformWrites<16>>(0, 262'144, 65536));
 
   suite.run_all();
 
